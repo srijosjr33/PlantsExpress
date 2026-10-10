@@ -7286,6 +7286,24 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     fill(document.getElementById('pxRateDeadhead'), pxDefaultDeadheadPct());
     fill(document.getElementById('pxRatePerStop'), pxDefaultPerStop());
   }
+  function pxRateNote(text, bad){
+    var b = document.getElementById('pxRateSave'); if(!b) return;
+    var n = document.getElementById('pxRateNote');
+    if(!n){ n = document.createElement('div'); n.id = 'pxRateNote'; n.style.cssText = 'font-size:13px;font-weight:600;margin:8px 0 4px;'; b.parentNode.insertBefore(n, b.nextSibling); }
+    n.style.color = bad ? 'var(--danger)' : 'var(--available)'; n.textContent = text;
+  }
+  function pxRateBadBoxes(){
+    var out = [], first = null;
+    var sel = '#pxRateEquip input, #pxMpgEquip input, #pxDbaseEquip input, #pxRateDieselAvg, #pxRateGasAvg, #pxRateGasBase, #pxRateMargin, #pxRateDeadhead, #pxRatePerStop';
+    document.querySelectorAll(sel).forEach(function(inp){
+      var v = String(inp.value).trim(), n = parseFloat(v);
+      var ok = v !== '' && !isNaN(n) && n >= 0 && !(inp.hasAttribute('data-mpg-equip') && n <= 0);
+      inp.style.outline = ok ? '' : '2px solid var(--danger)';
+      if(!ok){ var f = inp.closest('.field'), l = f && f.querySelector('label'); out.push(l ? l.textContent.trim() : (inp.id || 'a box')); if(!first) first = inp; }
+    });
+    if(first){ try{ first.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){} }
+    return out;
+  }
   document.getElementById('pxRateSave').addEventListener('click', function(){
     var equipRates = {}, bad = false;
     document.querySelectorAll('#pxRateEquip input[data-rate-equip]').forEach(function(inp){ var n = parseFloat(inp.value); if(isNaN(n) || n<0) bad = true; equipRates[PX_RATE_EQUIP[+inp.getAttribute('data-rate-equip')]] = n; });
@@ -7296,14 +7314,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     document.querySelectorAll('#pxDbaseEquip input[data-dbase-equip]').forEach(function(inp){ var n = parseFloat(inp.value); if(isNaN(n) || n<0) bad = true; equipDieselBase[PX_DBASE_EQUIP[+inp.getAttribute('data-dbase-equip')]] = n; });
     var fuel = {nationalAvg:num('pxRateDieselAvg'), base:(equipDieselBase['Dry Van']!=null ? equipDieselBase['Dry Van'] : fuelIndex.base), gasAvg:num('pxRateGasAvg'), gasBase:num('pxRateGasBase')};
     var margin = num('pxRateMargin'), dhPct = num('pxRateDeadhead'), perStop = num('pxRatePerStop');
-    if(bad || Object.keys(fuel).some(function(k){ return isNaN(fuel[k]); }) || isNaN(margin) || isNaN(dhPct) || isNaN(perStop) || perStop<0){ pxAdmMsg('Fill in every rate with a number.', true); return; }
+    var badBoxes = pxRateBadBoxes(); if(bad || badBoxes.length || Object.keys(fuel).some(function(k){ return isNaN(fuel[k]); }) || isNaN(margin) || isNaN(dhPct) || isNaN(perStop) || perStop<0){ pxRateNote('Not saved \u2014 fix the box'+(badBoxes.length===1?'':'es')+' outlined in red: '+(badBoxes.join(', ')||'one of the rates')+'. Use plain numbers only (like 2.50), no $ or commas.', true); pxAdmMsg('Rates not saved \u2014 see the note by the Save rates button.', true); return; }
+    pxRateNote('Saving\u2026', false);
     var data = {equipRates:equipRates, equipMpg:equipMpg, equipDieselBase:equipDieselBase, fuel:fuel, marginPct:margin, deadheadPct:dhPct, perStop:perStop, updatedAt:Date.now()};
     pxColSet('settings', 'rates', data).then(function(){
       pxApplyRates(data); pxOrigPersist();
       var mEl = document.getElementById('f-margin-pct'); if(mEl && !window.__editingLoadId) mEl.value = margin;
       var dEl = document.getElementById('f-deadhead-pct'); if(dEl && !window.__editingLoadId){ dEl.value = dhPct; try{ calcRateBreakdown(); }catch(e){} }
-      pxAdmMsg('Rates saved. New truck builds and estimates use them from now on.');
-    }).catch(pxAdmFail);
+      pxAdmMsg('Rates saved. New truck builds and estimates use them from now on.'); pxRateNote('\u2713 Rates saved.', false);
+    }).catch(function(e){ pxRateNote('Not saved \u2014 the server said: '+((e && (e.message||e.code))||'unknown problem')+'. Send Claude a screenshot of this.', true); pxAdmFail(e); });
   });
   var pxDirEditing = null;
   document.getElementById('pxAdminPanel').addEventListener('change', function(e){
@@ -8179,7 +8198,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     } try{ sgRender(); }catch(e){} try{ if(PX.wb && PX.wb.refreshGoal) PX.wb.refreshGoal(); }catch(e){} }
   function sgReader(){
     if(PX.wb && PX.wb.salesStats) return PX.wb;
-    if(!PX.sgWb){
+    if(!PX.sgWb && !PX.sgMounting){
+      PX.sgMounting = true;
       try{
         var h = document.getElementById('pxSgReaderHost');
         if(!h){ h = document.createElement('div'); h.id = 'pxSgReaderHost'; h.style.display = 'none'; document.body.appendChild(h); }
@@ -8187,6 +8207,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           goalInfo: function(sat){ var w = sgYearData(sat.slice(0,4))[sat] || {}; return {goal: sgNum(w.goal), invoiced: sgActual(w)}; },
           onDataChange: function(){ try{ sgRender(); }catch(e){} } });
       }catch(e){ PX.sgWb = null; }
+      PX.sgMounting = false;
     }
     return PX.sgWb;
   }
