@@ -8360,5 +8360,36 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }, 800);
 })();
 </script>
+<style>
+.px-ld-cols{display:grid;grid-template-columns:minmax(0,0.85fr) minmax(0,1.75fr) minmax(0,1fr);gap:26px;align-items:start;}
+.px-ld-cols > .px-ld-col{min-width:0;}
+.px-ld-cols > .px-ld-col + .px-ld-col{border-left:1px solid var(--border);padding-left:26px;}
+.px-ld-col > .section-title:first-child{margin-top:0 !important;}
+@media (max-width:1100px){ .px-ld-cols{grid-template-columns:minmax(0,1fr);} .px-ld-cols > .px-ld-col + .px-ld-col{border-left:none;padding-left:0;} }
+.px-build-stack{grid-template-columns:minmax(0,1fr) !important;}
+</style>
+<script>
+(function(){
+  var panel = document.getElementById('loadEditorPanel'); if(!panel) return;
+  // 1) put Load details above the Manifest (one column) on both build screens
+  ['loadEditorSlotBuild','loadEditorSlotPender'].forEach(function(id){
+    var slot = document.getElementById(id); if(slot && slot.parentNode) slot.parentNode.classList.add('px-build-stack');
+  });
+  // 2) lay the Load details out side by side: details | stops | rate calculator
+  var kids = Array.prototype.slice.call(panel.children);
+  var titles = kids.filter(function(k){ return k.classList && k.classList.contains('section-title'); });
+  var stopsT = titles.find(function(t){ return /^\s*Stops\s*$/.test(t.textContent); });
+  var rateT = titles.find(function(t){ return /^\s*Rate calculator\s*$/.test(t.textContent); });
+  if(!stopsT || !rateT) return;
+  var wrap = document.createElement('div'); wrap.className = 'px-ld-cols';
+  var c1 = document.createElement('div'), c2 = document.createElement('div'), c3 = document.createElement('div');
+  c1.className = c2.className = c3.className = 'px-ld-col';
+  var cur = c1;
+  kids.forEach(function(k){ if(k === stopsT) cur = c2; if(k === rateT) cur = c3; cur.appendChild(k); });
+  wrap.appendChild(c1); wrap.appendChild(c2); wrap.appendChild(c3);
+  panel.appendChild(wrap);
+})();
+</script>
 </body>
+
 </html>
