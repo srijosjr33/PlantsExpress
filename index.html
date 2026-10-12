@@ -8422,6 +8422,158 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     setInterval(function(){ var r = pxbRole() || null; if(r!==PXB.role){ PXB.role = r; if(PXB.ready) pxbApply(); } }, 700);
   })();
 
+  /* ===== Truck builder: add a stop straight from PENDER Orders or Book a Truck requests (new builds and edits) ===== */
+  var PXA = {tab:'dlog', q:'', added:{}};
+  (function pxaMount(){
+    var addBtn = document.getElementById('addStopBtn'); if(!addBtn) return;
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'pxaBtn'; btn.className = 'btn ghost small'; btn.style.cssText = 'width:100%;margin-top:6px;';
+    btn.textContent = '+ Add a stop from PENDER Orders or Requests';
+    var panel = document.createElement('div');
+    panel.id = 'pxaPanel'; panel.className = 'panel hidden'; panel.style.cssText = 'background:var(--panel-2);padding:10px 12px;margin-top:6px;';
+    addBtn.parentNode.insertBefore(btn, addBtn.nextSibling);
+    btn.parentNode.insertBefore(panel, btn.nextSibling);
+    btn.addEventListener('click', function(){ panel.classList.toggle('hidden'); pxaRender(); });
+    panel.addEventListener('click', function(e){
+      var t = e.target.closest('[data-pxa-tab]');
+      if(t){ PXA.tab = t.getAttribute('data-pxa-tab'); pxaRender(); return; }
+      var a = e.target.closest('button[data-pxa-add]');
+      if(a){ pxaAdd(a.getAttribute('data-pxa-kind'), a.getAttribute('data-pxa-add')); }
+    });
+    panel.addEventListener('input', function(e){
+      if(e.target.id!=='pxaSearch') return;
+      PXA.q = e.target.value; pxaRender();
+      var s = document.getElementById('pxaSearch'); if(s){ s.focus(); try{ s.setSelectionRange(s.value.length, s.value.length); }catch(x){} }
+    });
+  })();
+  function pxaOnTruck(id){ return draftStops.some(function(s){ return s.orderId===id; }); }
+  function pxaDlogList(){ return deliveryLogOrders.filter(function(r){ return r.status==='pending' || pxaOnTruck(r.id) && PXA.added[r.id]; }).sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); }); }
+  function pxaReqList(){ return requests.filter(function(r){ return r.status==='pending' || pxaOnTruck(r.id) && PXA.added[r.id]; }).sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); }); }
+  function pxaRender(){
+    var panel = document.getElementById('pxaPanel'); if(!panel || panel.classList.contains('hidden')) return;
+    var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var q = String(PXA.q||'').trim().toLowerCase();
+    var dl = pxaDlogList(), rq = pxaReqList();
+    var place = function(s){ return [s.city, s.state].filter(Boolean).join(', ') || '—'; };
+    var rows;
+    if(PXA.tab==='dlog'){
+      var items = dl.map(function(r){
+        var bits = [[pxqValue(r,'city'), pxqValue(r,'state')].filter(Boolean).join(', ')];
+        var su = pxqValue(r,'su'); if(su!=='') bits.push(su+' SU');
+        var wt = pxqValue(r,'wt'); if(wt!=='') bits.push(wt+' lbs');
+        var dd = pxqValue(r,'reqDate'); if(dd) bits.push('Deliver '+dd);
+        var rep = pxqValue(r,'salesRep') || pxqValue(r,'enteredBy'); if(rep) bits.push('Rep: '+rep);
+        var no = pxqValue(r,'orderNo');
+        return {id:r.id, kind:'dlog', title:pxqValue(r,'customer') || r.shipperName || 'Order', sub:no ? 'Order #'+no : '', line:bits.filter(Boolean).join(' · '),
+                hay:[pxqValue(r,'customer'), no, pxqValue(r,'city'), pxqValue(r,'address'), rep].join(' ').toLowerCase()};
+      });
+      rows = items;
+    } else {
+      rows = rq.map(function(r){
+        var picks = (r.stops||[]).filter(function(s){ return s.type==='pickup'; }), dels = (r.stops||[]).filter(function(s){ return s.type==='delivery'; });
+        var bits = ['Pickup '+(picks.map(place).join(' / ') || '—')+' → '+(dels.map(place).join(' → ') || '—')];
+        if(r.units) bits.push(Number(r.units).toLocaleString('en-US')+' SU');
+        if(r.weight) bits.push(Number(r.weight).toLocaleString('en-US')+' lbs');
+        if(r.requestedDeliveryDate) bits.push('Deliver by '+fmtDate(r.requestedDeliveryDate));
+        if(r.openToPiggyback) bits.push('Multi Stop');
+        return {id:r.id, kind:'req', title:r.shipperName || 'Request', sub:'REQ-'+r.ref, line:bits.join(' · '),
+                hay:[r.shipperName, 'req-'+r.ref, (r.stops||[]).map(function(s){ return [s.company, s.city, s.address].join(' '); }).join(' ')].join(' ').toLowerCase()};
+      });
+    }
+    if(q) rows = rows.filter(function(x){ return x.hay.indexOf(q) > -1; });
+    var tabBtn = function(k, label, n){ return '<button type="button" class="dirbtn'+(PXA.tab===k?' active':'')+'" data-pxa-tab="'+k+'">'+label+' ('+n+')</button>'; };
+    panel.innerHTML =
+      '<div class="dirbar" style="margin-bottom:8px;">'+tabBtn('dlog','PENDER Orders', dl.length)+tabBtn('req','All Requests', rq.length)+'</div>'+
+      '<input id="pxaSearch" placeholder="Search customer, city or order #…" style="width:100%;margin-bottom:6px;" value="'+esc(PXA.q)+'" autocomplete="off">'+
+      (rows.length ? rows.map(function(x){
+        var on = pxaOnTruck(x.id);
+        return '<div class="add-req-row"><div><b>'+esc(x.title)+'</b>'+(x.sub?' · '+esc(x.sub):'')+'<div style="font-size:11.5px;color:var(--text-dim);">'+esc(x.line)+'</div></div>'+
+          (on ? '<span style="color:var(--available);font-weight:700;font-size:12px;white-space:nowrap;">✓ Added</span>'
+              : '<button type="button" class="btn primary small" data-pxa-kind="'+x.kind+'" data-pxa-add="'+esc(x.id)+'">Add to truck</button>')+'</div>';
+      }).join('') : '<div style="font-size:12px;color:var(--text-dim);padding:6px 0;">'+(q ? 'Nothing matches that search.' : (PXA.tab==='dlog' ? 'No PENDER orders are waiting for a truck right now.' : 'No requests are waiting to be scheduled right now.'))+'</div>')+
+      '<div style="font-size:11.5px;color:var(--text-dim);margin-top:8px;">'+(PXA.tab==='dlog'
+        ? 'Only orders that aren’t on a truck yet are listed. When you save, the ones you added leave the PENDER Orders list and ride on this load. Remove the stop before saving and the order stays in the list.'
+        : 'All Book a Truck requests still waiting to be scheduled. Adding one brings in its pickup and delivery stops. When you save, it’s scheduled on this load.')+'</div>';
+  }
+  function pxaAdd(kind, id){
+    if(pxaOnTruck(id)) return;
+    var r = (kind==='dlog' ? deliveryLogOrders : requests).find(function(x){ return x.id===id; }); if(!r) return;
+    var isBack = !!window.__isPenderBuild && window.__loadDirection==='backhaul';
+    var stops = (r.stops||[]).filter(function(s){ return s.city || s.address || s.company; }).map(function(s){
+      var c = Object.assign({}, s); c.orderId = r.id; c.shipperName = r.shipperName; delete c.locked; delete c.isReturnStop;
+      if(kind==='dlog'){ c.units = r.units || 0; if(window.__isPenderBuild) c.type = isBack ? 'pickup' : 'delivery'; else if(!c.type) c.type = 'delivery'; }
+      return c;
+    });
+    if(!stops.length){
+      var d0 = {type: isBack ? 'pickup' : 'delivery', company:r.shipperName||'', address:'', city:'', state:'', zip:'', date:'', time:'', notes:'', units:r.units||0, orderId:r.id, shipperName:r.shipperName};
+      stops = [d0];
+    }
+    if(kind==='req'){
+      var dels = stops.filter(function(s){ return s.type==='delivery'; });
+      if(dels.length && !dels.some(function(s){ return Number(s.units)>0; })) dels[dels.length-1].units = Number(r.units)||0;
+    }
+    // goes in before the return-leg stop, or before PENDER on a backhaul
+    var at = draftStops.findIndex(function(s){ return s.isReturnStop || (isBack && s.locked); });
+    if(at>-1) Array.prototype.splice.apply(draftStops, [at, 0].concat(stops)); else Array.prototype.push.apply(draftStops, stops);
+    if(window.__isPenderBuild && kind==='dlog'){ window.__penderOrderStops = (window.__penderOrderStops||[]).concat(stops.map(function(s){ return Object.assign({}, s); })); }
+    if(!window.__isPenderBuild){
+      var sh = document.getElementById('f-shipper'), names = sh.value.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+      if(r.shipperName && names.indexOf(r.shipperName)<0){ names.push(r.shipperName); sh.value = names.join(', '); }
+      var w = parseFloat(r.weight); if(!isNaN(w) && w>0){ var fw = document.getElementById('f-weight'); fw.value = Math.round(((parseFloat(fw.value)||0) + w)*100)/100; }
+    }
+    PXA.added[r.id] = kind;
+    renderStopBuilder();
+    pxaRender();
+  }
+  var pxaOrigRenderStops = renderStopBuilder;
+  renderStopBuilder = function(){ var out = pxaOrigRenderStops.apply(this, arguments); try{ pxaRender(); }catch(e){} return out; };
+
+  /* --- on save: orders added here ride on the load, the same as orders picked from the lists --- */
+  function pxaStillPending(){
+    var ids = [];
+    draftStops.forEach(function(s){
+      var id = s.orderId; if(!id || ids.indexOf(id)>-1 || !PXA.added[id]) return;
+      var o = deliveryLogOrders.find(function(x){ return x.id===id; }) || requests.find(function(x){ return x.id===id; });
+      if(o && o.status==='pending') ids.push(id);
+    });
+    return ids;
+  }
+  document.addEventListener('click', function(e){
+    if(!e.target.closest || !e.target.closest('#saveLoadBtn')) return;
+    var ids = pxaStillPending();
+    var editId = window.__editingLoadId;
+    if(!editId){
+      // new truck: drop any of ours that were taken back off, add the ones still on it
+      var cur = (window.__patchingReqIds || []).filter(function(id){ return !PXA.added[id] || pxaOnTruck(id); });
+      ids.forEach(function(id){ if(cur.indexOf(id)<0) cur.push(id); });
+      window.__patchingReqIds = cur.length ? cur : (window.__patchingReqIds ? [] : null);
+      setTimeout(function(){ if(!draftStops.length){ PXA.added = {}; pxaClose(); } }, 0);
+      return;
+    }
+    if(!ids.length) return;
+    setTimeout(function(){
+      var load = loads.find(function(l){ return l.id===editId; }); if(!load) return;
+      var pc = load.pendingChange && load.pendingChange.fields;
+      var saved = (load.stops||[]).concat(pc && pc.stops || []);
+      var done = ids.filter(function(id){ return saved.some(function(s){ return s.orderId===id; }); });
+      if(!done.length) return;
+      done.forEach(function(id){
+        var d = deliveryLogOrders.find(function(x){ return x.id===id; }), r = requests.find(function(x){ return x.id===id; });
+        if(d) d.status = 'patched'; if(r) r.status = 'patched';
+        load.sourceRequestIds = (load.sourceRequestIds||[]).concat([id]);
+        var o = d || r;
+        try{ addEvent(load, 'Added '+(d ? 'PENDER order'+(pxqValue(d,'orderNo') ? ' #'+pxqValue(d,'orderNo') : '') : 'request REQ-'+r.ref)+' ('+(o.shipperName||'')+') — by '+session.name); }catch(x){}
+        delete PXA.added[id];
+      });
+      if(pc){ pc.sourceRequestIds = load.sourceRequestIds.slice(); }
+      persistData(); try{ renderAll(); }catch(x){}
+    }, 0);
+  }, true);
+  function pxaClose(){ var p = document.getElementById('pxaPanel'); if(p) p.classList.add('hidden'); PXA.q = ''; PXA.tab = 'dlog'; }
+  var pxaOrigOpenEditor = openLoadEditor;
+  openLoadEditor = function(){ pxaClose(); PXA.added = {}; return pxaOrigOpenEditor.apply(this, arguments); };
+  var pxaOrigExitEdit = exitEditMode;
+  exitEditMode = function(){ pxaClose(); return pxaOrigExitEdit.apply(this, arguments); };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
