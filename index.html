@@ -3237,7 +3237,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       salesRep:r.salesRep||'', contact:'', phone:r.contactNumbers||'', email:r.contactEmails||'', enteredBy:r.enteredBy||'', notes:r.notes||''}[k];
     return v==null ? '' : String(v);
   }
-  function renderDeliveryLog(){
+  function renderDeliveryLog(){ var __b = document.getElementById('deliveryLogList'), __o = __b && __b.querySelector('.pxq'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(1)} : null; try{ return renderDeliveryLog__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.pxq'); if(__k && __n && __n !== __o && __k.s === (1)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
+  function renderDeliveryLog__inner(){
     var wrap = document.getElementById('deliveryLogList');
     var all = deliveryLogOrders.filter(function(r){return r.status==='pending';}).sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0);});
     if(all.length===0){ wrap.innerHTML='<div class="panel empty"><div class="hd">No PENDER orders</div>Nothing pending right now. Orders the sales reps enter in the PENDER Nursery Orders workbook show up here automatically.</div>'; document.getElementById('patchDlogBtn').disabled=true; return; }
@@ -6005,7 +6006,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function trkWeekStart(iso){ var d = iso ? new Date(iso+'T12:00:00') : new Date(); if(isNaN(d)) d = new Date(); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return trkISO(d); }
   function trkMD(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (+m[2])+'/'+(+m[3]) : ''; }
   var TRK_DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
-  function renderTrucks(){
+  function renderTrucks(){ var __b = $('summary'), __o = __b && __b.querySelector('.wk-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(view.truckWeek)} : null; try{ return renderTrucks__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.wk-scroll'); if(__k && __n && __n !== __o && __k.s === (view.truckWeek)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
+  function renderTrucks__inner(){
     if(mode==='local') loadLocalTrucks();
     var box = $('summary');
     var list = trucks.filter(function(t){ return t.status!=='canceled'; });
@@ -6730,7 +6732,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     }
     return Promise.reject({msg:'File uploads aren\u2019t available right now. Check your connection and try again.'});
   }
-  function pxDocUrl(d){ return !d ? '' : (d.id ? '/_blob/'+d.id : (d.url||'')); }
+  function pxDocUrl(d){ return !d ? '' : (d.url || (d.id ? '/_blob/'+d.id : '')); }
   function pxShowCreg(on){
     document.getElementById('cregCard').classList.toggle('hidden', !on);
     document.getElementById('loginCard').classList.toggle('hidden', !!on);
@@ -7661,7 +7663,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(PX.db) PX.db.collection('settings').doc('overview').set(OV.settings).catch(function(){});
     else { try{ localStorage.setItem('px-overview-settings', JSON.stringify(OV.settings)); }catch(e){} }
   }
-  function ovRender(){
+  function ovRender(){ var __b = document.getElementById('ovBody'), __o = __b && __b.querySelector('.ov-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(OV.year+'|'+OV.month)} : null; try{ return ovRender__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.ov-scroll'); if(__k && __n && __n !== __o && __k.s === (OV.year+'|'+OV.month)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
+  function ovRender__inner(){
     var box = document.getElementById('ovBody'); if(!box || document.getElementById('pxOverview').classList.contains('hidden')) return;
     if(document.activeElement && document.activeElement.closest && document.activeElement.closest('#ovBody')) return;
     var all = ovAllRows();
