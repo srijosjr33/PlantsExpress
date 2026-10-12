@@ -541,6 +541,7 @@
 <style>
 .shell{max-width:none !important;padding-left:max(20px, 3vw) !important;padding-right:max(20px, 3vw) !important;}
 </style>
+<style>#resetDemoBtn{display:none !important;}</style>
 </head>
 <body>
 <div class="shell">
@@ -1900,7 +1901,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   /* ---------- writes (shown right away, then saved) ---------- */
   function track(c, id, p){
     c.pending[id] = (c.pending[id] || 0) + 1;
-    return p.then(function(v){ done(); return v; }, function(e){ done(true); throw e; });
+    return p.then(function(v){ done(); return v; }, function(e){ done(!(e && e.code==='already_exists')); throw e; });
     function done(failed){
       c.pending[id]--;
       if(c.pending[id] <= 0){ delete c.pending[id]; if(c.ready) refetchDoc(c, id); }
@@ -1933,6 +1934,16 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         return track(c, id, clientP.then(function(sb){
           return sb.from(TABLE).delete().eq('col', c.name).eq('id', id);
         }).then(function(r){ if(r.error) throw wrapErr(r.error); }, function(e){ throw wrapErr(e); }));
+      },
+      create: function(data){
+        var v = clone(data);
+        if(c.docs.has(id)){ var e0 = new Error('exists'); e0.code = 'already_exists'; return Promise.reject(e0); }
+        c.docs.set(id, v); emit(c);
+        return track(c, id, clientP.then(function(sb){
+          return sb.from(TABLE).insert({col:c.name, id:id, data:v, updated_at:new Date().toISOString()});
+        }).then(function(r){
+          if(r.error){ var e = wrapErr(r.error); if(r.error.code==='23505' || /duplicate key/i.test(r.error.message||'')) e.code = 'already_exists'; throw e; }
+        }, function(e){ throw wrapErr(e); }));
       },
       get: function(){
         return clientP.then(function(sb){ return sb.from(TABLE).select('id,data').eq('col', c.name).eq('id', id).maybeSingle(); })
@@ -4807,7 +4818,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(needD && dsel.value===''){ dsel.focus(); dsel.style.borderColor = 'var(--danger)'; return; }
     var dac = pxFindAcct('carrier', session.name), drv = needD ? ((dac && dac.drivers) || [])[+dsel.value] : null;
     if(load){ load.status='claimed'; load.claimedBy=session.name; load.vehicleNo = needV ? vsel.value : ''; load.driverName = drv ? drv.name : ''; load.driverPhone = drv ? drv.phone : ''; load.deliveryStage='claimed';
-      addEvent(load,'Claimed by '+session.name+(load.vehicleNo?' — vehicle '+load.vehicleNo:'')+(load.driverName?' — driver '+load.driverName:'')); persistData(); }
+      addEvent(load,'Claimed by '+session.name+(load.vehicleNo?' — vehicle '+load.vehicleNo:'')+(load.driverName?' — driver '+load.driverName:'')); persistData(); try{ pxbClaim(load); }catch(e){} }
     closeClaimModal(); renderAll();
   });
 
@@ -8243,6 +8254,173 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   document.getElementById('sgYear').addEventListener('change', function(){ SG.year = this.value; SG.week = null; window.__sgScrolled = false; sgRender(); });
   document.getElementById('sgClose').addEventListener('click', function(){ document.getElementById('sgModal').classList.add('hidden'); });
   document.getElementById('sgModal').addEventListener('click', function(e){ if(e.target.id==='sgModal') document.getElementById('sgModal').classList.add('hidden'); });
+
+  /* ===== Shared load board (website): loads, claims and carrier updates travel between computers through Supabase ===== */
+  var PXB = {docs:{}, claims:{}, dropped:{}, sent:{}, known:{}, ready:false, claimsReady:false, startedAt:Date.now(), role:null, toasts:null};
+  (function pxbCleanDemo(){
+    var demoLoads = {1001:'Carolina Textiles Co.', 1002:'Palmetto Cold Storage', 1003:'Granite State Steel'};
+    var demoNames = ['Carolina Textiles Co.','Palmetto Cold Storage','Granite State Steel','Bluegrass Warehousing','Duval Line Haul'];
+    var n0 = loads.length + requests.length + shipperDirectory.length + carrierDirectory.length;
+    loads = loads.filter(function(l){ return !(demoLoads[l.ref] && demoLoads[l.ref]===l.shipper && !l.isPender); });
+    requests = requests.filter(function(r){ return !(r.ref===5001 && r.shipperName==='Bluegrass Warehousing'); });
+    shipperDirectory = shipperDirectory.filter(function(m){ return demoNames.indexOf(m.name)<0; });
+    carrierDirectory = carrierDirectory.filter(function(m){ return demoNames.indexOf(m.name)<0; });
+    if(loads.length + requests.length + shipperDirectory.length + carrierDirectory.length !== n0){ try{ persistData(); }catch(e){} }
+  })();
+  function pxbKey(l){ var c = {}; Object.keys(l).forEach(function(k){ if(k!=='__boardAt') c[k] = l[k]; }); return JSON.stringify(c); }
+  function pxbRole(){ return session && session.role; }
+  function pxbMe(){ try{ return pxMyNames('carrier'); }catch(e){ return session ? [session.name] : []; } }
+
+  /* --- pop-up notices for the dispatcher --- */
+  function pxbToast(html){
+    if(!PXB.toasts){
+      PXB.toasts = document.createElement('div');
+      PXB.toasts.style.cssText = 'position:fixed;top:14px;right:14px;z-index:99998;display:flex;flex-direction:column;gap:10px;max-width:min(380px,92vw);';
+      document.body.appendChild(PXB.toasts);
+    }
+    var t = document.createElement('div');
+    t.style.cssText = 'background:#1f3a12;color:#EAF3DE;border:2px solid #97C459;border-radius:10px;padding:12px 38px 12px 14px;font:500 13.5px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.45);position:relative;';
+    t.innerHTML = html + '<button type="button" style="position:absolute;top:6px;right:8px;background:none;border:none;color:#EAF3DE;font-size:18px;cursor:pointer;line-height:1;" aria-label="Close">×</button>';
+    t.querySelector('button').addEventListener('click', function(){ t.remove(); });
+    PXB.toasts.appendChild(t);
+    setTimeout(function(){ try{ t.remove(); }catch(e){} }, 60000);
+  }
+  function pxbEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  /* --- dispatcher: send local load changes to the shared board --- */
+  function pxbPush(){
+    if(!PX.db || !PXB.ready || pxbRole()!=='dispatcher') return;
+    var col = PX.db.collection('board'), here = {};
+    loads.forEach(function(l){
+      if(l.id==null) return;
+      var id = String(l.id); here[id] = true;
+      if(l.status==='available' && PXB.claims[id]){ PXB.dropped[id] = PXB.claims[id].at || 1; l.__unclaimedAt = Date.now(); delete PXB.claims[id]; PX.db.collection('claims').doc(id).delete().catch(function(){}); }
+      var key = pxbKey(l);
+      if(PXB.sent[id]===key) return;
+      PXB.sent[id] = key; l.__boardAt = Date.now();
+      col.doc(id).set({json:key, ref:l.ref, status:l.status||'', updatedAt:l.__boardAt, by:session.name}).catch(function(){ delete PXB.sent[id]; });
+      PXB.known[id] = true;
+    });
+    Object.keys(PXB.known).forEach(function(id){
+      if(!here[id] && PXB.docs[id]){ delete PXB.known[id]; delete PXB.sent[id]; col.doc(id).delete().catch(function(){}); PX.db.collection('claims').doc(id).delete().catch(function(){}); }
+    });
+  }
+  var pxbOrigPersist = persistData;
+  persistData = function(){ pxbOrigPersist(); try{ pxbPush(); }catch(e){ console.error(e); } };
+
+  /* --- everyone: take in the shared board --- */
+  function pxbApply(){
+    var role = pxbRole();
+    if(!PXB.ready) return;
+    if(role==='dispatcher'){
+      var changed = false, byId = {};
+      loads.forEach(function(l, i){ byId[String(l.id)] = i; });
+      Object.keys(PXB.docs).forEach(function(id){
+        var d = PXB.docs[id];
+        if(PXB.sent[id]===d.json){ PXB.known[id] = true; return; }
+        var i = byId[id], local = i!=null ? loads[i] : null;
+        if(local && (local.__boardAt||0) > (d.updatedAt||0)) return;
+        var obj; try{ obj = JSON.parse(d.json); }catch(e){ return; }
+        obj.__boardAt = d.updatedAt||0;
+        if(i!=null) loads[i] = obj; else loads.push(obj);
+        PXB.sent[id] = d.json; PXB.known[id] = true; changed = true;
+      });
+      for(var j = loads.length-1; j >= 0; j--){
+        var lid = String(loads[j].id);
+        if(PXB.known[lid] && !PXB.docs[lid] && PXB.sent[lid]){ loads.splice(j,1); delete PXB.known[lid]; delete PXB.sent[lid]; changed = true; }
+      }
+      var maxRef = 0; loads.forEach(function(l){ var r = parseInt(l.ref,10); if(!isNaN(r) && r < 900000 && r > maxRef) maxRef = r; });
+      if(maxRef >= nextLoadRef) nextLoadRef = maxRef + 1;
+      if(pxbApplyClaims()) changed = true;
+      if(changed){ pxbOrigPersist(); try{ renderAll(); }catch(e){} }
+      pxbPush();
+    } else if(role==='carrier'){
+      var me = pxbMe();
+      var next = [];
+      Object.keys(PXB.docs).forEach(function(id){
+        var d = PXB.docs[id], obj; try{ obj = JSON.parse(d.json); }catch(e){ return; }
+        var c = PXB.claims[id];
+        if(obj.status==='available' && c && (c.at||0) > (obj.__unclaimedAt||0)){
+          obj.status = 'claimed'; obj.claimedBy = c.by; obj.deliveryStage = 'claimed';
+          if(me.indexOf(c.by)>-1){ obj.driverName = c.driverName||''; obj.driverPhone = c.driverPhone||''; obj.vehicleNo = c.vehicleNo||''; }
+        }
+        var st = PX.loadStatus && PX.loadStatus[id];
+        if(st && me.indexOf(st.by)>-1 && me.indexOf(obj.claimedBy)>-1 && (st.at||0) > (d.updatedAt||0)){
+          if(st.status==='completed' || st.status==='claimed') obj.status = st.status;
+          obj.deliveryStage = st.deliveryStage || obj.deliveryStage; obj.timing = st.timing || null;
+          if(st.vehicleNo) obj.vehicleNo = st.vehicleNo; if(st.driverName){ obj.driverName = st.driverName; obj.driverPhone = st.driverPhone||''; }
+        }
+        next.push(obj);
+      });
+      loads = next;
+      pxbOrigPersist(); try{ renderAll(); }catch(e){}
+    }
+  }
+
+  /* --- dispatcher: carriers' claims become claimed loads + a notice --- */
+  function pxbApplyClaims(){
+    if(pxbRole()!=='dispatcher' || !PXB.claimsReady) return false;
+    var changed = false;
+    Object.keys(PXB.claims).forEach(function(id){
+      var c = PXB.claims[id], l = loads.find(function(x){ return String(x.id)===id; });
+      if(!l || !c || l.status!=='available') return;
+      if(PXB.dropped[id] && (c.at||1) <= PXB.dropped[id]) return;
+      l.status = 'claimed'; l.claimedBy = c.by; l.deliveryStage = 'claimed';
+      l.driverName = c.driverName||''; l.driverPhone = c.driverPhone||''; l.vehicleNo = c.vehicleNo||'';
+      l.carrierStatusAt = c.at||Date.now();
+      addEvent(l, 'Claimed by '+c.by+(l.vehicleNo?' — vehicle '+l.vehicleNo:'')+(l.driverName?' — driver '+l.driverName:''));
+      changed = true;
+      var when = new Date(c.at||Date.now()), tm = when.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      var day = when.toDateString()===new Date().toDateString() ? '' : ' on '+when.toLocaleDateString();
+      var no = l.isPender ? (function(){ try{ return pxLoadNo(l.ref); }catch(e){ return 'LD-'+l.ref; } })() : 'LD-'+l.ref;
+      pxbToast('<div style="font-weight:700;font-size:14.5px;margin-bottom:3px;">🚚 '+pxbEsc(no)+' claimed</div>'+
+        '<div><b>'+pxbEsc(c.by)+'</b>'+(c.driverName?' — driver '+pxbEsc(c.driverName)+(c.driverPhone?' ('+pxbEsc(c.driverPhone)+')':''):'')+'</div>'+
+        '<div style="opacity:.85;font-size:12.5px;">'+pxbEsc(l.shipper||'')+' · '+pxbEsc(tm+day)+'</div>');
+    });
+    return changed;
+  }
+
+  /* --- carrier: claiming goes to the shared board, first come first served --- */
+  function pxbClaim(load){
+    if(!PX.db || !load || pxbRole()!=='carrier') return;
+    var id = String(load.id);
+    PX.db.collection('claims').doc(id).create({by:session.name, driverName:load.driverName||'', driverPhone:load.driverPhone||'', vehicleNo:load.vehicleNo||'', ref:load.ref, at:Date.now()})
+      .catch(function(e){
+        if(e && e.code==='already_exists'){
+          load.status = 'available'; load.claimedBy = null; load.deliveryStage = null;
+          pxbApply();
+          pxbToast('<div style="font-weight:700;">Sorry — LD-'+pxbEsc(load.ref)+' was just claimed by another carrier.</div><div style="opacity:.85;font-size:12.5px;">It has been removed from your available loads.</div>');
+        } else {
+          load.status = 'available'; load.claimedBy = null; load.deliveryStage = null; pxbOrigPersist(); try{ renderAll(); }catch(x){}
+          pxbToast('<div style="font-weight:700;">That claim didn’t go through.</div><div style="opacity:.85;font-size:12.5px;">Check your connection and try again.</div>');
+        }
+      });
+  }
+
+  var pxbOrigApplyLs = pxApplyLoadStatus;
+  pxApplyLoadStatus = function(m){
+    if(pxbRole()==='dispatcher' && m){   // claims arrive through the claims list (with the carrier's name); status updates only count once a load is claimed
+      var f = {};
+      Object.keys(m).forEach(function(id){ var l = loads.find(function(x){ return String(x.id)===id; }); if(l && (l.status==='available' || !l.claimedBy)) return; f[id] = m[id]; });
+      m = f;
+    }
+    pxbOrigApplyLs(m); if(pxbRole()==='carrier' && PXB.ready) pxbApply();
+  };
+
+  /* --- subscribe once the connection is ready --- */
+  (function pxbStart(){
+    if(!PX.db){ setTimeout(pxbStart, 300); return; }
+    PX.db.collection('board').onSnapshot(function(snap){
+      var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); });
+      PXB.docs = m; PXB.ready = true; pxbApply();
+    }, function(){});
+    PX.db.collection('claims').onSnapshot(function(snap){
+      var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); });
+      PXB.claims = m; PXB.claimsReady = true;
+      if(PXB.ready) pxbApply();
+    }, function(){});
+    setInterval(function(){ var r = pxbRole() || null; if(r!==PXB.role){ PXB.role = r; if(PXB.ready) pxbApply(); } }, 700);
+  })();
 
   /* --- connect to the shared data --- */
   function pxStartLocal(){
