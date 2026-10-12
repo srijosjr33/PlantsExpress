@@ -8290,5 +8290,69 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
 
 })();
 </script>
+<script>
+(function(){
+  var u = document.getElementById('pxOwnSignUser'), p = document.getElementById('pxOwnSignPass'), d = document.getElementById('pxOwnDrop'), b = document.getElementById('pxOwnSignBtn');
+  if(!u || !p || !d || !b) return;
+  var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  function sync(){
+    var has = !!u.value.trim();
+    if(has) d.classList.add('open');
+    if(touch) b.classList.toggle('hidden', !has);
+  }
+  u.addEventListener('input', sync);
+  u.addEventListener('change', sync);
+  u.addEventListener('blur', sync);
+  u.addEventListener('keyup', function(e){ if((e.keyCode===13 || e.key==='Enter') && u.value.trim()){ d.classList.add('open'); setTimeout(function(){ try{ p.focus(); }catch(x){} }, 250); } });
+  p.addEventListener('keyup', function(e){ if(e.keyCode===13 && e.key!=='Enter') b.click(); });
+  if(touch) b.textContent = 'ENTER \u2192';
+  var obs = new MutationObserver(function(){ if(!u.value.trim()){ if(touch) b.classList.add('hidden'); } });
+  obs.observe(d, {attributes:true, attributeFilter:['class']});
+})();
+</script>
+<style>
+.px-eye-wrap{position:relative;}
+.px-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:30px;height:30px;padding:0;margin:0;border:none !important;background:transparent !important;box-shadow:none !important;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#8a8a84;border-radius:6px;z-index:3;min-width:0 !important;}
+.px-eye:hover{color:#4a4a46;}
+.px-eye svg{width:20px;height:20px;display:block;}
+.px-eye.on{color:#C8102E;}
+</style>
+<script>
+(function(){
+  var OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var SHUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  function hide(inp, btn){ inp.type = 'password'; btn.innerHTML = OPEN; btn.classList.remove('on'); btn.setAttribute('aria-label', 'Show password'); btn.title = 'Show password'; }
+  function add(inp){
+    if(inp.__pxEye) return; inp.__pxEye = true;
+    var cs = getComputedStyle(inp);
+    var wrap = document.createElement('span'); wrap.className = 'px-eye-wrap';
+    wrap.style.display = 'block';
+    inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+    inp.style.setProperty('padding-right', '40px', 'important');
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'px-eye'; btn.tabIndex = -1;
+    hide(inp, btn);
+    btn.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    btn.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(inp.type === 'password'){ inp.type = 'text'; btn.innerHTML = SHUT; btn.classList.add('on'); btn.setAttribute('aria-label', 'Hide password'); btn.title = 'Hide password'; }
+      else hide(inp, btn);
+      try{ inp.focus(); var n = inp.value.length; inp.setSelectionRange(n, n); }catch(x){}
+    });
+    inp.addEventListener('input', function(){ if(!inp.value) hide(inp, btn); });
+    inp.__pxEyeBtn = btn;
+    wrap.appendChild(btn);
+  }
+  function scan(root){ (root || document).querySelectorAll('input[type=password]').forEach(add); }
+  scan();
+  new MutationObserver(function(muts){ muts.forEach(function(m){ m.addedNodes && m.addedNodes.forEach(function(n){ if(n.nodeType!==1) return; if(n.matches && n.matches('input[type=password]')) add(n); else if(n.querySelectorAll) scan(n); }); }); }).observe(document.body, {childList:true, subtree:true});
+  // back to dots after signing in, or when the box is cleared or no longer on screen
+  setInterval(function(){
+    document.querySelectorAll('input.__never, input').forEach(function(inp){
+      var b = inp.__pxEyeBtn; if(!b || inp.type !== 'text') return;
+      if(!inp.value || !inp.offsetParent) hide(inp, b);
+    });
+  }, 800);
+})();
+</script>
 </body>
 </html>
