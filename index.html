@@ -4896,6 +4896,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<div><div class="mbol-load">LOAD # '+e(load.ref)+'</div>'+
           '<div class="mbol-kv">EQUIPMENT: <b>'+e(load.equip||'')+'</b></div>'+
           '<div class="mbol-kv">CARRIER: <b>'+e(load.claimedBy||'')+'</b></div>'+
+          '<div class="mbol-kv">DRIVER: <b>'+(function(){ var dn = load.driverName || load.driver || ''; return dn ? e(dn)+(load.driverName && load.driverPhone ? ' ('+e(load.driverPhone)+')' : '') : '________________'; })()+'</b></div>'+
           (load.vehicleNo ? '<div class="mbol-kv">VEHICLE #: <b>'+e(load.vehicleNo)+'</b></div>' : '')+
           '<div class="mbol-sig">DRIVER SIGNATURE</div></div>'+
       '</div>'+
