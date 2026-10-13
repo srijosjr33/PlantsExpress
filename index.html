@@ -6310,7 +6310,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   /* --- dispatcher: manage rep logins --- */
   function pxRenderRepAdmin(){
     var box = document.getElementById('pxRepList'); if(!box) return;
-    var ownerBlocked = PX.user && PX.isOwner===false;
+    var ownerBlocked = PX.user && PX.isOwner===false && !pxOwnerSignedIn();
     document.getElementById('pxRepForm').classList.toggle('hidden', ownerBlocked);
     document.getElementById('pxRepOwnerNote').classList.toggle('hidden', !ownerBlocked);
     var list = PX.reps.slice().sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); });
@@ -6546,15 +6546,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     document.getElementById('pxOwnerGate').classList.add('hidden');
     if(mode!=='manager'){ try{ mgrEmbedClear(); }catch(e){} }
     if(mode==='admin'){
-      if(pxIsOwnerNow()){
-        if(pxOwnerSignedIn()) pxAdminSession = {owner:true, name:'Owner (you)'};
-        else {
-          document.getElementById('pxAdminGate').classList.add('hidden'); document.getElementById('pxAdminPanel').classList.add('hidden');
-          if(PXS.ready) pxShowOwnerGate();
-          return;
-        }
+      var ad = pxIsOwnerNow() ? null : pxAdmSessionRec();
+      if(pxOwnerSignedIn()) pxAdminSession = {owner:true, name:'Owner (you)'};
+      else if(ad) pxAdminSession = {id:ad.id, name:ad.name};
+      else {
+        if(!pxIsOwnerNow() && PXS.ready && pxReadKey(PX_ADMIN_SESSION)) { try{ localStorage.removeItem(PX_ADMIN_SESSION); }catch(e){} }
+        document.getElementById('pxAdminGate').classList.add('hidden'); document.getElementById('pxAdminPanel').classList.add('hidden');
+        if(PXS.ready) pxShowOwnerGate();
+        return;
       }
-      else { var ad = pxAdmSessionRec(); if(ad) pxAdminSession = {id:ad.id, name:ad.name}; else if(PXS.ready && pxReadKey(PX_ADMIN_SESSION)) { try{ localStorage.removeItem(PX_ADMIN_SESSION); }catch(e){} } }
     } else {
       var ms = pxMgrSessionRec();
       if(ms) pxAdminSession = {id:ms.rec.id, name:ms.rec.name, manager:true, perms:ms.rec.perms||{}, preview:ms.preview};
@@ -6617,12 +6617,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     return null;
   }
   function pxOwnerSignedIn(){
-    if(!pxIsOwnerNow()) return false;
     var oa = pxOwnerAuth(); if(!oa) return false;
     var s = pxReadKey(PX_OWNER_SESSION); return !!(s && s.setAt===oa.setAt);
   }
   function pxShowOwnerGate(){
-    var oa = pxOwnerAuth(), create = !oa || pxOwnResetMode;
+    var oa = pxOwnerAuth(), create = pxIsOwnerNow() && (!oa || pxOwnResetMode);
     document.getElementById('pxOwnerGate').classList.remove('hidden');
     document.getElementById('pxOwnSign').classList.toggle('hidden', create);
     document.getElementById('pxOwnCard').classList.toggle('hidden', !create);
@@ -6639,14 +6638,25 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     document.getElementById('pxOwnPass').value = document.getElementById('pxOwnSignPass').value;
     document.getElementById('pxOwnError').textContent = '';
     document.getElementById('pxOwnBtn').click();
+    var sgU = document.getElementById('pxOwnSignUser').value, sgP = document.getElementById('pxOwnSignPass').value;
     setTimeout(function(){
-      var e = document.getElementById('pxOwnError').textContent;
+      if(!document.getElementById('pxOwnError').textContent) return pxOwnSignDone('');
+      var ae = document.getElementById('pxAdmError'); ae.textContent = '';
+      document.getElementById('pxAdmName').value = sgU; document.getElementById('pxAdmPass').value = sgP;
+      document.getElementById('pxAdmBtn').click();
+      setTimeout(function(){ document.getElementById('pxAdmPass').value = ''; pxOwnSignDone(document.getElementById('pxOwnerGate').classList.contains('hidden') ? '' : (ae.textContent || 'no')); }, 450);
+    }, 450);
+  }
+  function pxOwnSignDone(e){
+    {
       document.getElementById('pxOwnSignPass').value = '';
       document.getElementById('pxOwnDrop').classList.remove('open');
       if(e){ var sg = document.querySelector('.dne-sign'); sg.classList.remove('shake'); void sg.offsetWidth; sg.classList.add('shake');
         document.getElementById('pxOwnSignUser').value = ''; setTimeout(function(){ document.getElementById('pxOwnSignUser').focus(); }, 300); }
-    }, 450);
+    }
   }
+  var pxOrigAdmGate = pxAdminRefreshGate;
+  pxAdminRefreshGate = function(){ var r = pxOrigAdmGate.apply(this, arguments); try{ pxRenderRepAdmin(); }catch(e){} return r; };
   document.getElementById('pxOwnSignBtn').addEventListener('click', pxOwnSignGo);
   document.getElementById('pxOwnSignUser').addEventListener('keydown', function(e){ if(e.key==='Enter' && this.value.trim()){ document.getElementById('pxOwnDrop').classList.add('open'); setTimeout(function(){ document.getElementById('pxOwnSignPass').focus(); }, 250); } });
   document.getElementById('pxOwnSignPass').addEventListener('keydown', function(e){ if(e.key==='Enter') pxOwnSignGo(); });
@@ -6658,9 +6668,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   document.getElementById('pxOwnBtn').addEventListener('click', function(){
     var err = document.getElementById('pxOwnError'); err.textContent = '';
-    if(!pxIsOwnerNow()){ err.textContent = 'Only the page owner can use this door.'; return; }
+    if(!pxIsOwnerNow() && (!pxOwnerAuth() || pxOwnResetMode)){ err.textContent = 'Login name or password is not right.'; return; }
     var user = document.getElementById('pxOwnUser').value.trim(), pw = document.getElementById('pxOwnPass').value, pw2 = document.getElementById('pxOwnPass2').value;
-    var oa = pxOwnerAuth(), create = !oa || pxOwnResetMode;
+    var oa = pxOwnerAuth(), create = pxIsOwnerNow() && (!oa || pxOwnResetMode);
     if(!user){ err.textContent = 'Enter your login name.'; return; }
     if(create){
       if(pw.length < 6){ err.textContent = 'Use a password of at least 6 characters.'; return; }
