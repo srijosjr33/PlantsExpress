@@ -5435,7 +5435,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           var url = 'mailto:'+encodeURIComponent(L.to)+'?subject='+encodeURIComponent(L.subject)+'&body='+encodeURIComponent(L.body);
           try{ var w = window.open(url, '_blank'); if(!w) window.location.href = url; }catch(err){ window.location.href = url; }
           cf.emailedAt = Date.now(); cf.emailedBy = myName||'';
-        } else { delete cf.emailedAt; delete cf.emailedBy; }
+        } else { cf.emailedAt = null; cf.emailedBy = null; }
       } else return;
       storeUpdate(id, {conf: cf, updatedAt: Date.now()});
       renderConfirm();
