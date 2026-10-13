@@ -8650,6 +8650,75 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   openLoadEditor = function(){ pxaClose(); PXA.added = {}; return pxaOrigOpenEditor.apply(this, arguments); };
   var pxaOrigExitEdit = exitEditMode;
   exitEditMode = function(){ pxaClose(); return pxaOrigExitEdit.apply(this, arguments); };
+  /* ===== Full screen: the Pender workbook (reps + managers) and the dispatcher's screens can fill the whole window ===== */
+  var PXFS = {on:false, mode:null, box:null, slots:{}, btn:null};
+  function pxFsMode(){
+    var app = document.getElementById('viewApp');
+    var wbOpen = !!(PX.wb || window.__pxViaManager) && ['pxWbHost','pxOverview','pxConfirm'].some(function(id){ var el = document.getElementById(id); return el && !el.classList.contains('hidden') && el.offsetParent!==null; });
+    if(wbOpen) return 'wb';
+    if(app && !app.classList.contains('hidden') && app.offsetParent!==null && session && session.role==='dispatcher') return 'disp';
+    return null;
+  }
+  function pxFsIds(mode){ return mode==='wb' ? ['penderSubTabs','pxOverview','pxConfirm','pxWbHost'] : ['viewApp']; }
+  function pxFsEnter(){
+    var mode = pxFsMode(); if(!mode || PXFS.on) return;
+    var box = document.createElement('div'); box.id = 'pxFsBox';
+    var bs = getComputedStyle(document.body);
+    box.style.cssText = 'position:fixed;inset:0;z-index:45;overflow:auto;padding:10px 12px 56px;box-sizing:border-box;background-color:'+(bs.backgroundColor && bs.backgroundColor!=='rgba(0, 0, 0, 0)' ? bs.backgroundColor : '#23231f')+';background-image:'+bs.backgroundImage+';background-size:cover;background-position:center;';
+    document.body.appendChild(box);
+    PXFS.slots = {};
+    pxFsIds(mode).forEach(function(id){
+      var el = document.getElementById(id); if(!el) return;
+      var c = document.createComment('fs-'+id); el.parentNode.insertBefore(c, el); PXFS.slots[id] = c; box.appendChild(el);
+    });
+    PXFS.on = true; PXFS.mode = mode; PXFS.box = box;
+    document.documentElement.style.overflow = 'hidden';
+    pxFsButton();
+    if(mode==='wb') setTimeout(function(){ try{ pxFitWorkbook(); }catch(e){} window.dispatchEvent(new Event('resize')); }, 30);
+  }
+  function pxFsExit(){
+    if(!PXFS.on) return;
+    var wasWb = PXFS.mode==='wb';
+    Object.keys(PXFS.slots).forEach(function(id){
+      var el = document.getElementById(id), c = PXFS.slots[id];
+      if(el && c && c.parentNode){ c.parentNode.insertBefore(el, c); c.parentNode.removeChild(c); }
+    });
+    if(PXFS.box && PXFS.box.parentNode) PXFS.box.parentNode.removeChild(PXFS.box);
+    PXFS.on = false; PXFS.mode = null; PXFS.box = null; PXFS.slots = {};
+    document.documentElement.style.overflow = '';
+    pxFsButton();
+    if(wasWb) setTimeout(function(){ try{ pxFitWorkbook(); }catch(e){} window.dispatchEvent(new Event('resize')); }, 30);
+  }
+  function pxFsButton(){
+    if(!PXFS.btn){
+      var b = document.createElement('button'); b.type = 'button'; b.id = 'pxFsBtn';
+      b.style.cssText = 'position:fixed;bottom:14px;right:18px;z-index:46;background:#1f3a12;color:#EAF3DE;border:2px solid #97C459;border-radius:999px;padding:7px 15px;font:600 13px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4);';
+      b.addEventListener('click', function(){ if(PXFS.on) pxFsExit(); else pxFsEnter(); });
+      document.body.appendChild(b); PXFS.btn = b;
+    }
+    var show = PXFS.on || !!pxFsMode();
+    PXFS.btn.style.display = show ? '' : 'none';
+    PXFS.btn.textContent = PXFS.on ? '⤢ Exit full screen' : '⤢ Full screen';
+    PXFS.btn.title = PXFS.on ? 'Back to the normal page' : 'Fill the whole window';
+  }
+  // while full screen, the workbook uses all the height below its tabs
+  var pxFsOrigFit = pxFitWorkbook;
+  pxFitWorkbook = function(){
+    if(!PXFS.on || PXFS.mode!=='wb') return pxFsOrigFit.apply(this, arguments);
+    var host = document.getElementById('pxWbHost'); if(!host || host.offsetParent===null) return;
+    var top = host.getBoundingClientRect().top - PXFS.box.getBoundingClientRect().top + PXFS.box.scrollTop;
+    host.style.height = Math.max(420, window.innerHeight - top - 56) + 'px';
+  };
+  // leaving the area (sign out, another tab) puts everything back first
+  var pxFsOrigMgrClear = mgrEmbedClear;
+  mgrEmbedClear = function(){ pxFsExit(); return pxFsOrigMgrClear.apply(this, arguments); };
+  setInterval(function(){
+    if(PXFS.on){
+      var still = pxFsIds(PXFS.mode).some(function(id){ var el = document.getElementById(id); return el && !el.classList.contains('hidden'); });
+      if(!still || (PXFS.mode==='disp' && !(session && session.role==='dispatcher'))) pxFsExit();
+    }
+    pxFsButton();
+  }, 600);
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
