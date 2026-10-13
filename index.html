@@ -1398,6 +1398,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
 .grid td.miss:not(.frz){position:relative;}
 .grid td.miss::after{content:'';position:absolute;top:0;right:0;border-style:solid;border-width:0 7px 7px 0;border-color:transparent var(--danger) transparent transparent;}
 .grid td.auto{color:var(--dim);}
+.grid td.fz-auto{background-color:rgba(151,196,89,.16);}
+.grid td.fz-auto::before{content:'auto';float:left;font-size:9.5px;opacity:.65;margin-right:6px;}
+.grid td.fz-pick:not(.editing)::after{content:'\25BE';float:right;opacity:.55;font-size:10px;}
 .grid td.editing{padding:0;overflow:visible;box-shadow:inset 0 0 0 2px var(--accent);}
 .grid td.editing input,.grid td.editing select{width:100%;height:23px;border:none;outline:none;background:var(--bg);color:var(--text);font:13px Arial,Helvetica,sans-serif;padding:0 5px;margin:0;}
 .grid tr.blank td{background:var(--bg);}
@@ -1447,6 +1450,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
 .summary .wk-grid td.ed.num input{text-align:right;}
 .summary .wk-grid td.ed input[data-k="address"]{min-width:170px;} .summary .wk-grid td.ed input[data-k="city"]{min-width:100px;} .summary .wk-grid td.ed input[data-k="email"],.summary .wk-grid td.ed input[data-k="notes"]{min-width:160px;} .summary .wk-grid td.ed input[data-k="state"]{min-width:34px;width:34px;} .summary .wk-grid td.ed input[data-k="contact"],.summary .wk-grid td.ed input[data-k="phone"]{min-width:120px;}
 .summary .wk-grid td.ed-2 input{display:block;height:18px;}
+.summary .wk-grid td.ed select.fz-sel{width:100%;min-width:82px;height:22px;border:none;background:transparent;font:inherit;color:inherit;padding:0 2px;outline:none;cursor:pointer;}
+.summary .wk-grid td.ed select.fz-sel option{color:#111;background:#fff;}
+.summary .wk-grid td.fz-auto{background-color:rgba(151,196,89,.16);}
 .summary .wk-grid td.ed input:focus{box-shadow:inset 0 0 0 2px var(--accent);background:var(--bg);}
 .summary .wk-grid td.gone{color:var(--dim);font-style:italic;}
 .wk-st{display:block;font-size:10px;color:var(--accent);font-weight:700;}
@@ -5097,7 +5103,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     {k:'city',     label:'City',               w:170, req:true},
     {k:'state',    label:'ST',                 w:38,  req:true, upper:true},
     {k:'zip',      label:'Zip',                w:56},
-    {k:'zone',     label:'Freight zone',       w:84},
+    {k:'zone',     label:'Freight zone',       w:84,  type:'zone'},
     {k:'freight',  label:'Freight',            w:90,  type:'money'},
     {k:'tag',      label:'Tag (Y/N)',          w:56,  type:'yn'},
     {k:'salesRep', label:'Sales rep',          w:130, type:'salesrep'},
@@ -5108,6 +5114,25 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     {k:'notes',    label:'Notes',              w:240},
     {k:'rep',      label:'Entered by',         w:130, type:'rep'}
   ];
+  var FZ_LIST = ['Flat','Below Min','19%','21%','23%','25%'];
+  function fzPct(z){ var m = /^\s*(\d+(?:\.\d+)?)\s*%\s*$/.exec(String(z||'')); return m ? +m[1] : null; }
+  function fzCanon(v){ var t = String(v||'').trim(), l = t.toLowerCase().replace(/\s+/g,' '); if(!t) return '';
+    var hit = FZ_LIST.find(function(z){ return z.toLowerCase()===l; }); if(hit) return hit;
+    if(/^\d+(\.\d+)?$/.test(l) && FZ_LIST.indexOf(l+'%')>-1) return l+'%'; return t; }
+  function fzOptions(cur, short){ var list = FZ_LIST.slice(); if(cur && list.indexOf(cur)<0) list.push(cur);
+    return [''].concat(list).map(function(z){ return '<option value="'+esc(z)+'"'+(z===cur?' selected':'')+'>'+(z ? esc(z) : (short ? '\u2014' : '\u2014 pick a zone \u2014'))+'</option>'; }).join(''); }
+  // a % zone fills Freight with % x order value + $25 (blank until there is an order value); Flat / Below Min leave Freight for the rep to type
+  function fzPatch(old, patch){
+    if(!patch || !patch.cells) return patch;
+    var pc = patch.cells, oc = (old && old.cells) || {};
+    if(!('zone' in pc) && !('value' in pc) && !('freight' in pc)) return patch;
+    var zone = ('zone' in pc) ? pc.zone : oc.zone, val = ('value' in pc) ? pc.value : oc.value, pct = fzPct(zone);
+    var cells = Object.assign({}, pc);
+    if(pct!=null){ var n = parseNum(val); cells.freight = (n==null || isNaN(n)) ? '' : (Math.round((pct/100*n + 25)*100)/100).toFixed(2); }
+    else if(('zone' in pc) && fzPct(oc.zone)!=null && !('freight' in pc)) cells.freight = '';
+    if(!('freight' in pc) && ('freight' in cells) && cells.freight===(oc.freight||'')) delete cells.freight;
+    return Object.assign({}, patch, {cells:cells});
+  }
   var FROZEN = 5;   // Requested delivery date through Customer name stay put, like the frozen line in the sheet
   var FILLS = ['#B4A7D6','#00FFFF','#B6D7A8','#FF9900','#FFFF00','#F4CCCC','#CFE2F3','#D9D9D9','#EA9999','#FFE599'];
   var INKS  = ['#000000','#FF0000','#0000FF','#38761D','#674EA7','#E69138','#666666','#CC0000'];
@@ -5160,6 +5185,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var v = String(raw==null?'':raw).trim();
     if(!v) return '';
     if(col.type==='salesrep') return canonRep(v);
+    if(col.type==='zone') return fzCanon(v);
     if(col.type==='status'){ var hit=STATUSES.find(function(s){return s.toLowerCase()===v.toLowerCase();}); return hit||null; }
     return v;
   }
@@ -5225,6 +5251,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   function storeUpdate(id, patch){
     var old = rows.get(id); if(!old) return;
+    patch = fzPatch(old, patch);
     var next = Object.assign({}, old, patch);
     if(patch.cells) next.cells = Object.assign({}, old.cells||{}, patch.cells);
     if(patch.fmt){ next.fmt = Object.assign({}, old.fmt||{}); Object.keys(patch.fmt).forEach(function(k){ next.fmt[k] = Object.assign({}, (old.fmt||{})[k]||{}, patch.fmt[k]); }); }
@@ -5472,6 +5499,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         var cls = [], f = fz(c), style = f.st;
         if(col.type==='num'||col.type==='money') cls.push('num');
         if(col.type==='rep') cls.push('auto');
+        if(col.type==='zone') cls.push('fz-pick');
+        if(col.k==='freight' && row && fzPct((row.cells||{}).zone)!=null) cls.push('fz-auto');
         if(row){
           var raw = cellRaw(row, col);
           var fm = (row.fmt && row.fmt[col.k]) || {};
@@ -5569,6 +5598,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(!canWrite) return;
     var r0 = disp[sel.r]; if(r0 && (r0.status==='Canceled' || r0.truckLocked)) return;
     var col = COLS[sel.c]; if(col.type==='rep') return;
+    if(col.k==='freight' && r0 && fzPct((r0.cells||{}).zone)!=null) return;   // filled in from the freight zone
     var row = disp[sel.r];
     var td = cellTd(sel.r, sel.c); if(!td) return;
     td.classList.add('editing');
@@ -5578,6 +5608,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       STATUSES.forEach(function(s){ var o=document.createElement('option'); o.value=s; o.textContent=s; el.appendChild(o); });
       el.value = row ? (row.status||'Requested') : 'Requested';
       el.addEventListener('change', function(){ finishEdit(true, 0, 0); });
+    } else if(col.type==='zone'){
+      el = document.createElement('select');
+      var zc = cellRaw(row, col); el.innerHTML = fzOptions(zc); el.value = zc;
+      if(initial!=null && String(initial).trim()){ var zg = String(initial).trim().toLowerCase(), zm = FZ_LIST.find(function(z){ return z.toLowerCase().indexOf(zg)===0; }); if(zm) el.value = zm; }
+      el.addEventListener('change', function(){ finishEdit(true, 0, 0); });
+      setTimeout(function(){ try{ if(editing && editing.el===el && el.showPicker) el.showPicker(); }catch(e){} }, 0);
     } else if(col.type==='salesrep'){
       el = document.createElement('select');
       var cur = cellRaw(row, col), names = repNames().slice();
@@ -5677,7 +5713,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   });
   gridEl.addEventListener('click', function(e){
     var td = e.target.closest('td[data-r]'); if(!td || editing) return;
-    var c = +td.getAttribute('data-c'); if(!COLS[c] || COLS[c].type!=='salesrep') return;
+    var c = +td.getAttribute('data-c'); if(!COLS[c] || (COLS[c].type!=='salesrep' && COLS[c].type!=='zone')) return;
     startEdit(null);
   });
   gridEl.addEventListener('dblclick', function(e){
@@ -6061,7 +6097,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           if(!row) return '<tr>'+(i===0?'%%LEFT%%':'')+'<td>'+(i+1)+'</td><td class="gone" colspan="'+(COLS_W.length-3)+'">This order was deleted from the workbook.</td></tr>';
           var contact = [c.contact, c.phone].filter(Boolean).join(' ');
           return '<tr'+(t.backhaul?' class="bh"':'')+'>'+(i===0?'%%LEFT%%':'')+'<td>'+(i+1)+'</td><td>'+esc(loadTxt)+'</td>'+
-            ro('orderDate')+ro('orderNo')+ro('staged',null,'b')+ro('customer')+ed('address')+ed('su','num')+ed('wt','num')+ed('value','num')+ro('terms')+ed('city')+ed('state')+ed('zip')+ro('zone')+ed('freight','num')+ro('tag')+
+            ro('orderDate')+ro('orderNo')+ro('staged',null,'b')+ro('customer')+ed('address')+ed('su','num')+ed('wt','num')+ed('value','num')+ro('terms')+ed('city')+ed('state')+ed('zip')+(editable ? '<td class="ed"'+st('zone')+'><select class="fz-sel" data-row="'+esc(row.id)+'" data-k="zone">'+fzOptions(c.zone||'', true)+'</select></td>' : ro('zone'))+(fzPct(c.zone)!=null ? ro('freight', c.freight ? trkMoney(c.freight) : '', 'num fz-auto').replace('<td ', '<td title="Filled in from the freight zone" ') : ed('freight','num'))+ro('tag')+
             '<td>'+esc(trkTime(sp.time))+'</td><td>'+esc(c.salesRep || repName(row) || '')+'</td>'+
             (editable ? '<td class="ed ed-2"><input data-row="'+esc(row.id)+'" data-k="contact" value="'+esc(c.contact||'')+'" placeholder="Contact"><input data-row="'+esc(row.id)+'" data-k="phone" value="'+esc(c.phone||'')+'" placeholder="Phone"></td>' : '<td>'+esc(contact)+'</td>')+
             ed('email')+ed('notes')+'</tr>';
@@ -6107,6 +6143,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         if(changed && canWrite){ var p = {}; p[inp.getAttribute('data-k')] = v; storeUpdate(inp.getAttribute('data-row'), {cells:p, updatedAt:Date.now()}); }
         if(changed || trkDirty){ trkDirty = false; setTimeout(function(){ if(!trkEditing) renderTrucks(); }, 0); }
       });
+    });
+    box.querySelectorAll('select.fz-sel').forEach(function(s){
+      s.addEventListener('change', function(){ if(!canWrite) return; storeUpdate(s.getAttribute('data-row'), {cells:{zone:s.value}, updatedAt:Date.now()}); setTimeout(function(){ if(!trkEditing) renderTrucks(); }, 0); });
     });
   }
 
