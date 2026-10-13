@@ -8472,6 +8472,30 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     setInterval(function(){ var r = pxbRole() || null; if(r!==PXB.role){ PXB.role = r; if(PXB.ready) pxbApply(); } }, 700);
   })();
 
+
+  /* --- Overview: managers, reps and Admin (anyone who isn't the dispatcher) count the shared trucks, live --- */
+  function pxbBoardLoads(){
+    var out = [];
+    Object.keys(PXB.docs).forEach(function(id){
+      var obj; try{ obj = JSON.parse(PXB.docs[id].json); }catch(e){ return; }
+      var c = PXB.claims[id];
+      if(obj.status==='available' && c && (c.at||0) > (obj.__unclaimedAt||0)){ obj.status = 'claimed'; obj.claimedBy = c.by; }
+      out.push(obj);
+    });
+    return out;
+  }
+  var pxbOrigOvLoads = ovLoads;
+  ovLoads = function(){
+    if(pxbRole()==='dispatcher' || !PXB.ready) return pxbOrigOvLoads.apply(this, arguments);
+    var saved = loads;
+    try{ loads = pxbBoardLoads(); return pxbOrigOvLoads.apply(this, arguments); } finally { loads = saved; }
+  };
+  (function pxbOvLive(){
+    if(!PX.db){ setTimeout(pxbOvLive, 400); return; }
+    var redraw = function(){ try{ ovRender(); }catch(e){} };
+    PX.db.collection('board').onSnapshot(function(){ setTimeout(redraw, 0); }, function(){});
+    PX.db.collection('claims').onSnapshot(function(){ setTimeout(redraw, 0); }, function(){});
+  })();
   /* ===== Truck builder: add a stop straight from PENDER Orders or Book a Truck requests (new builds and edits) ===== */
   var PXA = {tab:'dlog', q:'', added:{}};
   (function pxaMount(){
