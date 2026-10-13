@@ -5390,8 +5390,10 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       'Order #: '+(c.orderNo||'—')+'\n'+
       'Deliver to: '+(c.customer||'')+(addr?', '+addr:'')+'\n'+
       'Load date & time: '+confLongDate(t.loadDate || dDate)+(lt?' · '+lt:'')+'\n'+
-      'Delivery date: '+confLongDate(dDate)+'\n'+
-      'Estimated delivery time: '+(eta || 'To be confirmed')+'\n'+
+      '\n'+
+      'DELIVERY DATE: '+String(confLongDate(dDate)).toUpperCase()+'\n'+
+      'ESTIMATED DELIVERY TIME: '+String(eta || 'To be confirmed').toUpperCase()+'\n'+
+      '\n'+
       'Load #: '+(t.loadRef||'')+'\n\n'+
       'Please keep in mind that the delivery time is subject to change. If you have any additions or revisions to your order, please contact your sales rep, '+rep+'. Once we load and invoice your order, you will receive a call to confirm the final delivery time.\n\n'+
       'Thank you for your business!\n\n'+
