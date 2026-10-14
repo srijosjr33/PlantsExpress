@@ -1100,9 +1100,7 @@
             <div id="manualUnitsField" class="hidden" style="margin-top:8px;">
               <div class="section-title" style="margin-top:14px;">Shipment size (shipping units)</div>
               <div class="panel" style="background:var(--panel-2);padding:12px 14px;margin-bottom:6px;">
-                <div class="field" style="margin:0;"><label for="bhUnitsInput">Total shipping units (SU)</label><input id="bhUnitsInput" type="number" min="0" step="1" placeholder="e.g. 600"></div>
-                <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">Enter the SU for this backhaul.</div>
-                <div class="hidden">
+                <div>
                 <table style="width:100%;border-collapse:collapse;">
                   <thead><tr>
                     <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-dim);padding-bottom:6px;">Gallon size</th>
@@ -1113,8 +1111,9 @@
                   <tbody id="bhUnitLineRows"></tbody>
                 </table>
                 <button type="button" class="btn ghost small" id="addBhUnitLineBtn" style="width:100%;margin-top:8px;">+ Add plant line</button>
-                <div class="calc-row calc-total" style="margin-top:10px;"><span>Total shipping units</span><span class="mono" id="bhUnitsTotal">0</span></div>
-                <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">1 gallon = 1 shipping unit (a 3-gallon plant counts as 3). Entered manually since backhaul quantities usually aren't on the order record yet.</div>
+                <span class="mono hidden" id="bhUnitsTotal">0</span>
+                <div class="field" style="margin:12px 0 0;"><label for="bhUnitsInput">Total shipping units (SU) — adds up the plant lines above</label><input id="bhUnitsInput" type="number" min="0" step="1" placeholder="e.g. 600"></div>
+                <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">Add plant lines and the total fills in, or just type the total here if you don’t have the gallon sizes. 1 gallon = 1 shipping unit (a 3-gallon plant counts as 3).</div>
               </div>
               </div>
             </div>
@@ -9082,6 +9081,20 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   var sgtOrigRender = sgRender;
   sgRender = function(){ var out = sgtOrigRender.apply(this, arguments); try{ sgtDecorate(); }catch(e){} return out; };
   document.getElementById('sgYear').addEventListener('change', function(){ SGT.pick = {}; setTimeout(sgtDecorate, 0); });
+  /* --- backhaul plant lines fill the Total shipping units box --- */
+  var BHL = {auto:null};
+  function bhlSum(){ return bhUnitLines.reduce(function(s,l){ return s + ((parseFloat(l.gallons)||0) * sumMultiNum(l.qty)); }, 0); }
+  function bhlSync(){
+    var box = document.getElementById('bhUnitsInput'); if(!box) return;
+    var sum = Math.round(bhlSum()*100)/100;
+    if(sum > 0){ box.value = sum; BHL.auto = String(sum); }
+    else if(BHL.auto!==null && String(box.value)===BHL.auto){ box.value = ''; BHL.auto = null; }
+    try{ calcRateBreakdown(); }catch(e){}
+  }
+  document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#bhUnitLineRows')) setTimeout(bhlSync, 0); });
+  var bhlOrigRender = renderBhUnitLines;
+  renderBhUnitLines = function(){ var out = bhlOrigRender.apply(this, arguments); bhlSync(); return out; };
+  document.addEventListener('input', function(e){ if(e.target && e.target.id==='bhUnitsInput') BHL.auto = null; });
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
