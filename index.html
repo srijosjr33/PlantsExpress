@@ -1177,7 +1177,6 @@
     <div id="roleCarrier" class="hidden">
       <div class="navtabs">
         <button data-tab="avail" class="active">Available Loads</button>
-        <button data-tab="ctrack">Tracking</button>
         <button data-tab="mine">My Claimed Loads</button>
         <button data-tab="cprofile">My profile</button>
       </div>
@@ -9253,6 +9252,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   wrap.appendChild(c1); wrap.appendChild(c2); wrap.appendChild(c3);
   panel.appendChild(wrap);
 })();
+</script>
+<script>
+(function(){ setInterval(function(){ var r = document.getElementById('roleCarrier'); if(!r || r.classList.contains('hidden')) return;
+  var tabs = r.querySelectorAll('.navtabs button'); var any = Array.prototype.some.call(tabs, function(b){ return b.classList.contains('active'); });
+  if(!any && tabs[0]) tabs[0].click(); }, 500); })();
 </script>
 </body>
 
