@@ -4912,7 +4912,16 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           '<div class="mbol-kv">PHONE: <b>'+e(PX_CONTACT.phone || '(___) ___-____')+'</b></div>'+
           (PX_CONTACT.email ? '<div class="mbol-kv">EMAIL: <b>'+e(PX_CONTACT.email)+'</b></div>' : '')+
           '<div class="mbol-kv">LOAD DATE: <b>'+e(loadDateTxt)+'</b></div>'+
-          '<div class="mbol-kv">LOADING TIME: <b>'+e(loadTimeTxt)+'</b></div></div>'+
+          '<div class="mbol-kv">LOADING TIME: <b>'+e(loadTimeTxt)+'</b></div>'+
+          '<div class="mbol-kv">DELIVERY DATE: <b>'+(function(){
+            var toIso = function(d){ d = String(d||'').trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d; var m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if(!m) return ''; var y = m[3].length===2 ? '20'+m[3] : m[3]; return y+'-'+('0'+m[1]).slice(-2)+'-'+('0'+m[2]).slice(-2); };
+            var ds = [];
+            (load.stops||[]).forEach(function(s){ if(s.isReturnStop || s.type!=='delivery' || (!backhaul && s.locked)) return; var x = toIso(s.date); if(x) ds.push(x); });
+            if(!ds.length && !backhaul) rows.forEach(function(s){ var o = mbolOrderFor(load, s) || {}, c = o.wbCells || {}; var x = toIso(c.reqDate || o.requestedDeliveryDate); if(x) ds.push(x); });
+            ds = ds.filter(function(x, i){ return ds.indexOf(x)===i; }).sort();
+            if(!ds.length) return '________________';
+            return e(mbolMD(ds[0], true)) + (ds.length>1 ? ' \u2013 '+e(mbolMD(ds[ds.length-1], true)) : '');
+          })()+'</b></div></div>'+
         '<div></div>'+
         '<div><div class="mbol-load">LOAD # '+e(load.ref)+'</div>'+
           '<div class="mbol-kv">EQUIPMENT: <b>'+e(load.equip||'')+'</b></div>'+
