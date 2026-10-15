@@ -5411,6 +5411,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     el.classList.remove('hidden');
     $('raSeen').addEventListener('click', markAllSeen);
   }
+  function cfDay(iso, withYear){ var d = new Date(String(iso||'')+'T12:00:00'); if(!iso || isNaN(d)) return ''; return d.toLocaleDateString('en-US',{weekday:'short'})+' '+(d.getMonth()+1)+'/'+d.getDate()+(withYear?'/'+d.getFullYear():''); }
   function confLongDate(iso){ var d = new Date(String(iso||'')+'T12:00:00'); return isNaN(d) ? (iso||'') : d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); }
   function confLetter(t, sp, row){
     var c = (row && row.cells) || {}, eta = sp.time ? trkTime(sp.time) : '';
@@ -5460,13 +5461,13 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(!dayTrucks.length){ html += '<div class="cf-none">No trucks delivering this day.</div>'; continue; }
       dayTrucks.forEach(function(t){
         var stops = (t.stops && t.stops.length) ? t.stops : (t.orderIds||[]).map(function(id){ return {rowId:id}; });
-        html += '<div class="cf-load"><div class="cf-lh"><b>'+esc(t.loadRef)+'</b><span>'+esc(t.carrier||'No carrier yet')+' · '+esc(t.truckNo||t.equip||'')+'</span><span class="cf-st">'+esc(t.statusText||'')+'</span><span>'+stops.length+' stop'+(stops.length===1?'':'s')+'</span>'+(t.loadTime?'<span>Load '+esc(trkTime(t.loadTime))+'</span>':'')+'</div>'+
-          '<div class="cf-scroll"><table class="cf-t"><thead><tr><th>CONFIRMED</th><th>STOP</th><th>COMPANY</th><th>CONTACT</th><th>PHONE · CALL RESULT</th><th>EMAIL</th><th>EMAIL SENT</th></tr></thead><tbody>'+
+        html += '<div class="cf-load"><div class="cf-lh"><b>'+esc(t.loadRef)+'</b><span>'+esc(t.carrier||'No carrier yet')+' · '+esc(t.truckNo||t.equip||'')+'</span><span class="cf-when-h">LOAD <b>'+esc(cfDay(t.loadDate || t.date || t.__cday) || '—')+(t.loadTime ? ' · '+esc(trkTime(t.loadTime)) : '')+'</b> → DELIVER <b>'+esc(cfDay(t.date || t.loadDate || t.__cday) || '—')+'</b></span><span class="cf-st">'+esc(t.statusText||'')+'</span><span>'+stops.length+' stop'+(stops.length===1?'':'s')+'</span></div>'+
+          '<div class="cf-scroll"><table class="cf-t"><thead><tr><th>CONFIRMED</th><th>STOP</th><th>COMPANY</th><th>DELIVERY DATE / TIME</th><th>CONTACT</th><th>PHONE · CALL RESULT</th><th>EMAIL</th><th>EMAIL SENT</th></tr></thead><tbody>'+
           stops.map(function(sp, i){
             var row = rows.get(sp.rowId), c = (row && row.cells) || {}, cf = (row && row.conf) || {};
             var calls = CALLS(c.contact).map(function(o){ return '<option value="'+o[0]+'"'+((cf.call||'')===o[0]?' selected':'')+'>'+esc(o[1]||'Call result…')+'</option>'; }).join('');
             return '<tr class="'+(cf.confirmed?'ok':'')+'"><td><input type="checkbox" class="cf-conf" data-id="'+esc(sp.rowId)+'"'+(cf.confirmed?' checked':'')+(row?'':' disabled')+'></td>'+
-              '<td>'+(i+1)+'</td><td><b>'+esc(c.customer||'')+'</b>'+(hits[sp.rowId]?' <span class="cf-new">NEW</span>':'')+'</td><td>'+esc(c.contact||'—')+'</td>'+
+              '<td>'+(i+1)+'</td><td><b>'+esc(c.customer||'')+'</b>'+(hits[sp.rowId]?' <span class="cf-new">NEW</span>':'')+'</td>'+'<td class="cf-when"><b>'+esc(cfDay(t.date || t.loadDate || t.__cday, true) || '—')+'</b><br><span>ETA '+esc(sp.time ? trkTime(sp.time) : 'To be confirmed')+'</span></td>'+'<td>'+esc(c.contact||'—')+'</td>'+
               '<td><span class="cf-ph">'+esc(c.phone||'—')+'</span><select class="cf-call" data-id="'+esc(sp.rowId)+'"'+(row?'':' disabled')+'>'+calls+'</select>'+
                 (cf.call==='SPOKE' ? '<input class="cf-spoke" data-id="'+esc(sp.rowId)+'" value="'+esc(cf.spokeWith!=null ? cf.spokeWith : (c.contact||''))+'" placeholder="Name of person" spellcheck="false">' : '')+'</td>'+
               '<td>'+(c.email ? esc(c.email) : '<span class="cf-dim">No email on this order</span>')+'</td>'+
