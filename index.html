@@ -8472,8 +8472,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var el = ev.target; if(!el.classList || !el.classList.contains('sg-in') || !sgCanEdit()) return;
     var w = el.getAttribute('data-w'), k = el.getAttribute('data-k'), d = sgYearData(SG.year);
     if(Object.isFrozen(d)){ d = SG.data[SG.year] = JSON.parse(JSON.stringify(d)); }
-    d[w] = Object.assign({}, d[w]||{}); var v = el.value.trim(); if(v==='') delete d[w][k]; else d[w][k] = sgNum(v);
-    var saveP = sgSave(); if(saveP && saveP.catch) saveP.catch(function(){ try{ var nt = document.querySelector('#sgBody .sg-note'); if(nt){ nt.textContent = 'That number didn\u2019t save. Check your connection and type it again.'; nt.style.color = 'var(--danger)'; } }catch(e){} });
+    d[w] = Object.assign({}, d[w]||{}); var v = el.value.trim(); var nv = v==='' ? null : sgNum(v); d[w][k] = nv;
+    var saveP = sgCellSave(SG.year, w, k, nv); if(saveP && saveP.catch) saveP.catch(function(){ try{ var nt = document.querySelector('#sgBody .sg-note'); if(nt){ nt.textContent = 'That number didn\u2019t save. Check your connection and type it again.'; nt.style.color = 'var(--danger)'; } }catch(e){} });
     // redraw only after the cursor has moved on, so clicking straight into the next box keeps what you type there
     setTimeout(function(){ sgRender(); try{ if(PX.wb && PX.wb.refreshGoal) PX.wb.refreshGoal(); }catch(e){} }, 0);
   });
@@ -9126,8 +9126,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function sgtSet(y, w, k, v){
     var d = sgYearData(y);
     if(Object.isFrozen(d)){ d = SG.data[y] = JSON.parse(JSON.stringify(d)); }
-    d[w] = Object.assign({}, d[w]||{}); if(v==='' || v==null) delete d[w][k]; else d[w][k] = sgNum(v);
-    try{ var pr = pxColSet('settings', 'sales'+y, {weeks: d, sheetFilled: true, updatedAt: Date.now()}); if(pr && pr.catch) pr.catch(function(){}); }catch(e){}
+    d[w] = Object.assign({}, d[w]||{}); var nv = (v==='' || v==null) ? null : sgNum(v); d[w][k] = nv;
+    try{ var pr = sgCellSave(y, w, k, nv); if(pr && pr.catch) pr.catch(function(){}); }catch(e){}
   }
   function sgtStep(back){
     if(!sgCanEdit()) return;
@@ -9186,6 +9186,43 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   var bhlOrigRender = renderBhUnitLines;
   renderBhUnitLines = function(){ var out = bhlOrigRender.apply(this, arguments); bhlSync(); return out; };
   document.addEventListener('input', function(e){ if(e.target && e.target.id==='bhUnitsInput') BHL.auto = null; });
+  /* ===== Sales goals: each box saves on its own, and a late, older copy from the server can't wipe out a newer number ===== */
+  var SGL = {edits:{}, raw:{}, timer:null};
+  function sgCellSave(y, w, k, v){
+    var key = y+'|'+w+'|'+k; SGL.edits[key] = {y:y, w:w, k:k, v:v, until: Date.now() + 60000};
+    var col = PX.db ? PX.db.collection('settings') : null, id = 'sales'+y;
+    if(!col) return pxColSet('settings', id, {weeks: sgYearData(y), sheetFilled: true, updatedAt: Date.now()});
+    var patch = {weeks:{}, sheetFilled: true, updatedAt: Date.now()}; patch.weeks[w] = {}; patch.weeks[w][k] = v;
+    return col.doc(id).update(patch).catch(function(e){
+      if(!(e && e.code==='not_found')) throw e;
+      // the year's sheet isn't saved yet: create it (never over someone else's), then add this box
+      return col.doc(id).create({weeks: JSON.parse(JSON.stringify(sgYearData(y))), sheetFilled: true, updatedAt: Date.now()})
+        .catch(function(e2){ if(!(e2 && e2.code==='already_exists')) throw e2; })
+        .then(function(){ return col.doc(id).update(patch); });
+    }).then(function(r){ var ed = SGL.edits[key]; if(ed && ed.v===v) ed.until = Date.now() + 20000; sgLaterReapply(); return r; },
+            function(e){ var ed = SGL.edits[key]; if(ed && ed.v===v) ed.until = Date.now() + 20000; sgLaterReapply(); throw e; });
+  }
+  function sgOverlay(y, doc){
+    if(!doc || !doc.weeks) return doc;
+    var now = Date.now(), out = null;
+    Object.keys(SGL.edits).forEach(function(key){
+      var ed = SGL.edits[key]; if(ed.until < now){ delete SGL.edits[key]; return; }
+      if(ed.y!==y) return;
+      if(!out){ out = Object.assign({}, doc); out.weeks = JSON.parse(JSON.stringify(doc.weeks)); }
+      var wk = out.weeks[ed.w] = out.weeks[ed.w] || {}; wk[ed.k] = ed.v;
+    });
+    return out || doc;
+  }
+  function sgLaterReapply(){
+    clearTimeout(SGL.timer);
+    SGL.timer = setTimeout(function(){ Object.keys(SGL.raw).forEach(function(y){ try{ sgApply('sales'+y, SGL.raw[y]); }catch(e){} }); }, 21000);
+  }
+  var sgsOrigApply = sgApply;
+  sgApply = function(id, doc){
+    var y = String(id).replace('sales','');
+    if(doc && doc.weeks){ SGL.raw[y] = doc; doc = sgOverlay(y, doc); }
+    return sgsOrigApply.call(this, id, doc);
+  };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
