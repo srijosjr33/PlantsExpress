@@ -4745,7 +4745,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         var oldEquip = load.equip;
         Object.assign(load, pc.fields);
         if(pc.oldEquip !== undefined && pc.oldEquip !== load.equip){ load.equipAlert = {from:pc.oldEquip, to:load.equip, at: now(), ackBy: []}; }
-        load.pendingChange = null;
+        load.pendingChange = null; try{ pxcrSend(load, pc, true); }catch(e){}
         addEvent(load, session.name+' accepted proposed changes ('+pc.changesSummary.join(', ')+')');
         persistData();
         renderAll();
@@ -4755,7 +4755,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         var pc = load.pendingChange;
         if(!pc) return;
         askConfirm('Decline these changes? '+pxLoadNo(load.ref)+' will stay on its current terms.', function(){
-          load.pendingChange = null;
+          load.pendingChange = null; try{ pxcrSend(load, pc, false); }catch(e){}
           addEvent(load, session.name+' declined proposed changes ('+pc.changesSummary.join(', ')+') — load unchanged');
           persistData();
           renderAll();
@@ -8365,9 +8365,32 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function sgDaySum(w){ return SG_DAYS.reduce(function(s,k){ return s + sgNum(w && w[k]); }, 0); }
   function sgHasInv(w){ return !!w && w.invoiced!==undefined && w.invoiced!==null && w.invoiced!==''; }
   function sgActual(w){ return sgHasInv(w) ? sgNum(w.invoiced) : sgDaySum(w); }   // typed weekly Invoiced wins; blank = add up the daily boxes
+  function sgSync(o, n, foc){   // copy new numbers onto the page without rebuilding the box being typed in
+    var kids = function(el){ return Array.prototype.filter.call(el.children, function(k){ return k.id!=='sgTools'; }); };
+    var oc = kids(o), nc = kids(n);
+    if(oc.length!==nc.length || o.tagName!==n.tagName) return false;
+    if(o.tagName==='INPUT'){
+      if(o!==foc){ if(o.value!==n.value) o.value = n.value; }
+      ['placeholder','data-w','data-k'].forEach(function(at){ if(o.getAttribute(at)!==n.getAttribute(at)){ if(n.hasAttribute(at)) o.setAttribute(at, n.getAttribute(at)); else o.removeAttribute(at); } });
+      return true;
+    }
+    if(o.className!==n.className && o!==document.getElementById('sgBody')){ var keepPick = o.classList.contains('sgt-pick'); o.className = n.className; if(keepPick) o.classList.add('sgt-pick'); }
+    if(!nc.length){ if(o.innerHTML!==n.innerHTML) o.innerHTML = n.innerHTML; return true; }
+    if(!oc.length && o.innerHTML!==n.innerHTML){ o.innerHTML = n.innerHTML; return true; }
+    for(var i = 0; i < nc.length; i++){
+      if(!sgSync(oc[i], nc[i], foc)){
+        if(oc[i].contains(foc)) return false;
+        o.replaceChild(nc[i].cloneNode(true), oc[i]);
+      }
+    }
+    // text sitting directly next to elements (like "Week 3 · ...")
+    var ot = Array.prototype.filter.call(o.childNodes, function(x){ return x.nodeType===3; }), nt = Array.prototype.filter.call(n.childNodes, function(x){ return x.nodeType===3; });
+    if(ot.length===nt.length) ot.forEach(function(x, i){ if(x.nodeValue!==nt[i].nodeValue) x.nodeValue = nt[i].nodeValue; });
+    return true;
+  }
   function sgRender(){
     var bodyChk = document.getElementById('sgBody'); if(!bodyChk || bodyChk.offsetParent===null) return;
-    var body = document.getElementById('sgBody'); if(body.contains(document.activeElement) && document.activeElement.tagName==='INPUT') return;
+    var body = document.getElementById('sgBody'); var sgFoc = (body.contains(document.activeElement) && document.activeElement.tagName==='INPUT') ? document.activeElement : null;
     var y = SG.year, data = sgYearData(y), weeks = sgWeeks(y), edit = sgCanEdit(), e = pxEsc;
     var todaySat = (function(){ var d = new Date(); d.setHours(12); while(d.getDay()!==6) d.setDate(d.getDate()+1); return sgIso(d); })();
     var cur = weeks.indexOf(todaySat) > -1 ? todaySat : null;
@@ -8414,8 +8437,10 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     // keep your place: remember where the sheet was scrolled and put it back after redrawing
     var oldSc = body.querySelector('.sg-sc'), keepTop = oldSc ? oldSc.scrollTop : null, keepLeft = oldSc ? oldSc.scrollLeft : null;
     var keepPage = window.scrollY, keepModal = (document.getElementById('sgModal')||{}).scrollTop;
-    body.innerHTML = hero + '<div class="sg-note">'+(edit ? 'You can set goals and enter daily sales. Changes save as soon as you leave a box, and everyone sees them.' : 'Goals and daily sales are entered by managers and admins.')+'</div>'+
+    var sgHtml = hero + '<div class="sg-note">'+(edit ? 'You can set goals and enter daily sales. Changes save as soon as you leave a box, and everyone sees them.' : 'Goals and daily sales are entered by managers and admins.')+'</div>'+
       '<div class="sg-g"><div class="sg-sc"><table class="sg-t"><thead><tr><th>WK</th><th>ENDING</th><th>MON</th><th>TUE</th><th>WED</th><th>THU</th><th>FRI</th><th>SAT</th><th>ACTUAL</th><th>GOAL</th><th>+/−</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+qhtml+'</div>';
+    if(sgFoc){ var tmpB = document.createElement('div'); tmpB.innerHTML = sgHtml; if(sgSync(body, tmpB, sgFoc)) return; return; }
+    body.innerHTML = sgHtml;
     if(keepTop!=null){ var nsc = body.querySelector('.sg-sc'); if(nsc){ nsc.scrollTop = keepTop; nsc.scrollLeft = keepLeft; } try{ window.scrollTo(window.scrollX, keepPage); var md = document.getElementById('sgModal'); if(md && keepModal!=null) md.scrollTop = keepModal; }catch(e){} }
     if(cur){ setTimeout(function(){ var r = body.querySelector('tr.cur'); if(r && !window.__sgScrolled){ window.__sgScrolled = true; r.scrollIntoView({block:'center'}); } }, 30); }
   }
@@ -8484,8 +8509,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   function sgShowInAdmin(){
     var p = document.getElementById('sgPanel'), box = document.getElementById('pxAdmSales'); if(!p || !box) return;
-    SG.inAdmin = true; box.appendChild(p); document.getElementById('sgClose').style.display = 'none';
-    sgReader(); sgFillYears(); window.__sgScrolled = false; sgRender();
+    var moved = p.parentNode!==box; SG.inAdmin = true; if(moved) box.appendChild(p); document.getElementById('sgClose').style.display = 'none';
+    sgReader(); if(moved){ sgFillYears(); window.__sgScrolled = false; } sgRender();
   }
   function sgOpen(){
     SG.inAdmin = false;
@@ -8501,6 +8526,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   document.getElementById('sgModal').addEventListener('click', function(e){ if(e.target.id==='sgModal') document.getElementById('sgModal').classList.add('hidden'); });
 
   /* ===== Shared load board (website): loads, claims and carrier updates travel between computers through Supabase ===== */
+  var PXCR = {replies:{}};
   var PXB = {docs:{}, claims:{}, dropped:{}, sent:{}, known:{}, ready:false, claimsReady:false, startedAt:Date.now(), role:null, toasts:null};
   (function pxbCleanDemo(){
     var demoLoads = {1001:'Carolina Textiles Co.', 1002:'Palmetto Cold Storage', 1003:'Granite State Steel'};
@@ -8588,6 +8614,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         if(obj.status==='available' && c && (c.at||0) > (obj.__unclaimedAt||0)){
           obj.status = 'claimed'; obj.claimedBy = c.by; obj.deliveryStage = 'claimed';
           if(me.indexOf(c.by)>-1){ obj.driverName = c.driverName||''; obj.driverPhone = c.driverPhone||''; obj.vehicleNo = c.vehicleNo||''; }
+        }
+        var rp = PXCR.replies[id];   // the carrier's own answer to a proposed change shows right away
+        if(obj.pendingChange && rp && me.indexOf(rp.by)>-1 && String(rp.proposedAt)===String(obj.pendingChange.proposedAt)){
+          if(rp.ok) Object.assign(obj, obj.pendingChange.fields || {});
+          obj.pendingChange = null;
         }
         var st = PX.loadStatus && PX.loadStatus[id];
         if(st && me.indexOf(st.by)>-1 && me.indexOf(obj.claimedBy)>-1 && (st.at||0) > (d.updatedAt||0)){
@@ -8690,6 +8721,57 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var redraw = function(){ try{ ovRender(); }catch(e){} };
     PX.db.collection('board').onSnapshot(function(){ setTimeout(redraw, 0); }, function(){});
     PX.db.collection('claims').onSnapshot(function(){ setTimeout(redraw, 0); }, function(){});
+  })();
+
+  /* --- proposed changes: the carrier's Accept / Decline reaches the dispatcher --- */
+  function pxcrSend(load, pc, ok){
+    if(!PX.db || !load || !pc) return;
+    var r = {ok:!!ok, by:session.name, proposedAt:pc.proposedAt, at:Date.now()};
+    PXCR.replies[String(load.id)] = r;
+    PX.db.collection('changeReplies').doc(String(load.id)).set(r).catch(function(){});
+  }
+  function pxcrApply(m){
+    if(pxbRole()!=='dispatcher' || !PXB.ready) return;
+    var changed = false;
+    Object.keys(m||{}).forEach(function(id){
+      var r = m[id], l = loads.find(function(x){ return String(x.id)===id; });
+      if(!r || !l || !l.pendingChange || String(r.proposedAt)!==String(l.pendingChange.proposedAt)) return;
+      if(l.claimedBy && r.by && l.claimedBy!==r.by) return;
+      var pc = l.pendingChange, what = (pc.changesSummary||[]).join(', ');
+      if(r.ok){
+        Object.assign(l, pc.fields || {});
+        if(pc.oldEquip!==undefined && pc.oldEquip!==l.equip){ l.equipAlert = {from:pc.oldEquip, to:l.equip, at:now(), ackBy:[]}; }
+        addEvent(l, r.by+' accepted proposed changes ('+what+')');
+      } else {
+        addEvent(l, r.by+' declined proposed changes ('+what+') \u2014 load unchanged');
+        // orders that were only added by the declined change go back to their lists
+        var keep = (l.sourceRequestIds||[]).filter(function(oid){
+          var onIt = (l.stops||[]).some(function(s){ return s.orderId===oid; });
+          if(!onIt){
+            var d = deliveryLogOrders.find(function(x){ return x.id===oid; }); if(d && d.status==='patched') d.status = 'pending';
+            var q = requests.find(function(x){ return x.id===oid; }); if(q && q.status==='patched') q.status = 'pending';
+          }
+          return onIt;
+        });
+        if(keep.length !== (l.sourceRequestIds||[]).length) l.sourceRequestIds = keep;
+      }
+      l.pendingChange = null; changed = true;
+      var no = (function(){ try{ return pxLoadNo(l.ref); }catch(e){ return 'LD-'+l.ref; } })();
+      pxbToast('<div style="font-weight:700;font-size:14.5px;margin-bottom:3px;">'+(r.ok ? '\u2705 '+pxbEsc(no)+' changes accepted' : '\u274C '+pxbEsc(no)+' changes declined')+'</div>'+
+        '<div><b>'+pxbEsc(r.by)+'</b> '+(r.ok ? 'accepted' : 'declined')+' your changes'+(what ? ' ('+pxbEsc(what)+')' : '')+'.</div>'+
+        (r.ok ? '' : '<div style="opacity:.85;font-size:12.5px;">The load stays as it was.</div>'));
+    });
+    if(changed){ persistData(); try{ renderAll(); }catch(e){} }
+  }
+  (function pxcrStart(){
+    if(!PX.db){ setTimeout(pxcrStart, 400); return; }
+    PX.db.collection('changeReplies').onSnapshot(function(snap){
+      var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); });
+      PXCR.replies = m;
+      if(pxbRole()==='dispatcher') pxcrApply(m); else if(pxbRole()==='carrier' && PXB.ready) pxbApply();
+    }, function(){});
+    // the board may arrive after the answers
+    setInterval(function(){ if(pxbRole()==='dispatcher' && PXB.ready) pxcrApply(PXCR.replies); }, 3000);
   })();
   /* ===== Truck builder: add a stop straight from PENDER Orders or Book a Truck requests (new builds and edits) ===== */
   var PXA = {tab:'dlog', q:'', added:{}};
