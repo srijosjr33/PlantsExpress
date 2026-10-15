@@ -8363,7 +8363,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function sgM2(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function sgSigned(n){ return (n<0?'−':'+')+sgM(Math.abs(n)); }
   function sgDaySum(w){ return SG_DAYS.reduce(function(s,k){ return s + sgNum(w && w[k]); }, 0); }
-  function sgHasInv(w){ return !!w && w.invoiced!==undefined && w.invoiced!==null && w.invoiced!==''; }
+  function sgHasInv(w){ return false; }   // the weekly Invoiced is always the Mon–Sat total (an old typed number is ignored)
   function sgActual(w){ return sgHasInv(w) ? sgNum(w.invoiced) : sgDaySum(w); }   // typed weekly Invoiced wins; blank = add up the daily boxes
   function sgSync(o, n, foc){   // copy new numbers onto the page without rebuilding the box being typed in
     var kids = function(el){ return Array.prototype.filter.call(el.children, function(k){ return k.id!=='sgTools'; }); };
@@ -8407,7 +8407,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       row('Pending delivery <small>(future orders · not counted)</small>', st ? sgM2(st.pending) : '—', 'info')+
       row('Pending pick up <small>(not counted)</small>', edit ? cell(wk,'pickup',ww.pickup) : sgM2(sgNum(ww.pickup)), 'typed in')+
       row('Bookings <small>(not counted)</small>', edit ? cell(wk,'bookings',ww.bookings) : sgM2(sgNum(ww.bookings)), 'typed in')+
-      row('Invoiced <small>(weekly total'+(sgHasInv(ww)?'':' · blank = daily boxes')+')</small>', edit ? cell(wk,'invoiced',ww.invoiced).replace('inputmode=','placeholder="'+(sgHasInv(ww)?'':sgDaySum(ww).toFixed(2))+'" inputmode=') : sgM2(inv), 'typed in')+
+      row('Invoiced <small>(weekly total · adds up Mon–Sat)</small>', sgM2(inv), 'automatic')+
       row('On loads', st ? sgM2(onL) : '—', 'automatic')+
       row('<b>Total</b> <small>(invoiced + on loads)</small>', '<b>'+sgM2(tot)+'</b>', '', 'tot')+
       row('Weekly goal', gg ? sgM(gg) : 'not set', '')+
