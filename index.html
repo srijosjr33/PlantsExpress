@@ -5355,11 +5355,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var list = [], on = 0;
     trucks.forEach(function(t){
       if(t.status==='canceled' || t.backhaul) return;
-      var day = t.date || t.loadDate || ''; if(!day || day < monIso || day > satIso) return;
+      var day = t.loadDate || t.date || ''; var sunIso = (function(){ var d = new Date(satIso+'T12:00:00'); d.setDate(d.getDate()+1); return trkISO(d); })(); if(!day || day < monIso || day > sunIso) return;
       var st = t.statusText || ''; var ls = loadStatusMap[t.id]; if(ls && (ls.at||0) > (t.updatedAt||0)) st = ls.statusText || st;
       var gone = t.status==='completed' || /^(en route|on site|completed|canceled)/i.test(st);
       var v = (t.orderIds||[]).reduce(function(a,id){ var r = rows.get(id); return a + (r ? trkNum((r.cells||{}).value) : 0); }, 0);
-      list.push({ref:t.loadRef, day:day, status:st, value:v, gone:gone});
+      list.push({ref:t.loadRef, day:day, del:(t.date||''), status:st, value:v, gone:gone});
       if(!gone) on += v;
     });
     list.sort(function(a,b){ return a.day < b.day ? -1 : a.day > b.day ? 1 : 0; });
@@ -8418,7 +8418,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       row('Weekly goal', gg ? sgM(gg) : 'not set', '')+
       (gg ? '<div class="sg-pct"><b>'+pp+'%</b><div class="sg-bar"><div style="width:'+Math.min(100,pp)+'%;background:'+(pp>=100?'#97C459':'#EF9F27')+';"></div></div><span class="'+(tot>=gg?'pos':'neg')+'">'+(tot>=gg?'goal met ✓':sgM(gg-tot)+' to go')+'</span></div>' : '')+
       '</div><div class="sg-box"><div class="sg-bh">WHAT\u2019S IN \u201cON LOADS\u201d</div>'+
-      (st ? (st.trucks.length ? st.trucks.map(function(t){ return '<div class="sg-tk'+(t.gone?' gone':'')+'"><b>'+e(t.ref)+'</b><span>'+new Date(t.day+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'})+' · '+e(t.status||'')+'</span><span>'+sgM2(t.value)+'</span></div>'; }).join('') : '<div class="sg-dim">No trucks this week yet.</div>') : '<div class="sg-dim">Open from the workbook to see trucks.</div>')+
+      (st ? (st.trucks.length ? st.trucks.map(function(t){ return '<div class="sg-tk'+(t.gone?' gone':'')+'"><b>'+e(t.ref)+'</b><span>Loads '+new Date(t.day+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'})+(t.del && t.del!==t.day ? ' → delivers '+new Date(t.del+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'}) : '')+' · '+e(t.status||'')+'</span><span>'+sgM2(t.value)+'</span></div>'; }).join('') : '<div class="sg-dim">No trucks this week yet.</div>') : '<div class="sg-dim">Open from the workbook to see trucks.</div>')+
       '<div class="sg-dim" style="margin-top:8px;">Once a truck goes <b>En route</b>, it drops off On loads (its sales are in Invoiced).</div></div></div>';
     var rows = '', q = [{g:0,a:0},{g:0,a:0},{g:0,a:0},{g:0,a:0}], mo = -1, mt = null;
     var flushMonth = function(){ if(mt){ var p = mt.g>0 ? Math.round(mt.a/mt.g*100) : 0; rows += '<tr class="tot"><td colspan="8">'+MONTHS[mo].charAt(0)+MONTHS[mo].slice(1).toLowerCase()+' total'+(mt.g?' · '+p+'%':'')+'</td><td>'+sgM2(mt.a)+'</td><td>'+sgM(mt.g)+'</td><td class="'+(mt.a-mt.g<0?'neg':'pos')+'">'+sgSigned(mt.a-mt.g)+'</td></tr>'; } };
