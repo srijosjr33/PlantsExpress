@@ -9257,6 +9257,45 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       return a.date<b.date?-1:a.date>b.date?1:0;
     });
   };
+  /* ===== Overview: SHIPPING (delivery trucks) and BACKHAUL (trucks bringing loads into Pender) kept apart ===== */
+  var OVK = {kind:'ship'};
+  try{ OVK.kind = localStorage.getItem('px-ov-kind')==='bh' ? 'bh' : 'ship'; }catch(e){}
+  function ovkIsBh(l){ return !!l && (l.direction==='backhaul' || (!l.direction && (l.stops||[]).some(function(s){ return s.locked && s.type==='delivery'; }))); }
+  var ovkOrigLoads = ovLoads;
+  ovLoads = function(){ var bh = OVK.kind==='bh'; return ovkOrigLoads.apply(this, arguments).filter(function(l){ return ovkIsBh(l)===bh; }); };
+  (function ovkMount(){
+    var ov = document.getElementById('pxOverview'); if(!ov) return;
+    var bar = document.createElement('div'); bar.id = 'ovKindTabs';
+    bar.style.cssText = 'display:flex;gap:8px;margin:0 0 12px;';
+    bar.innerHTML = '<button type="button" data-ovk="ship">🚚 SHIPPING</button><button type="button" data-ovk="bh">↩ BACKHAUL</button>';
+    ov.insertBefore(bar, ov.firstChild);
+    bar.addEventListener('click', function(e){
+      var b = e.target.closest('button[data-ovk]'); if(!b) return;
+      OVK.kind = b.getAttribute('data-ovk'); try{ localStorage.setItem('px-ov-kind', OVK.kind); }catch(x){}
+      ovkPaint(); ovRender();
+    });
+    ovkPaint();
+  })();
+  function ovkPaint(){
+    document.querySelectorAll('#ovKindTabs button').forEach(function(b){
+      var on = b.getAttribute('data-ovk')===OVK.kind;
+      b.style.cssText = 'font:700 13px Roboto,sans-serif;letter-spacing:.04em;padding:7px 18px;border-radius:999px;cursor:pointer;border:1.5px solid '+(on?'#97C459':'#E24B4A')+';background:'+(on?'#97C459':'transparent')+';color:'+(on?'#173404':'var(--text)')+';';
+    });
+  }
+  var ovkOrigRender = ovRender;
+  ovRender = function(){
+    var out = ovkOrigRender.apply(this, arguments);
+    try{
+      var t = document.querySelector('#ovBody .ov-title'), bh = OVK.kind==='bh';
+      if(t){
+        if(OV.month==='year') t.textContent = OV.year+(bh ? ' BACKHAUL OVERVIEW' : ' SHIPPING OVERVIEW');
+        else if(!/·/.test(t.textContent)) t.textContent = t.textContent + (bh ? ' · BACKHAUL' : ' · SHIPPING');
+      }
+      var none = document.querySelector('#ovBody > p');
+      if(none && /No Pender trucks this month/.test(none.textContent)) none.textContent = bh ? 'No backhaul trucks this month yet.' : 'No shipping trucks this month yet.';
+    }catch(e){}
+    return out;
+  };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
