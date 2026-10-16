@@ -4872,6 +4872,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var e = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
     var backhaul = load.direction==='backhaul';
     var rows = (load.stops||[]).filter(function(s){ return !s.isReturnStop && !s.locked && (backhaul ? s.type==='pickup' : s.type==='delivery'); });
+    if(!backhaul){ var bhExtra = (load.stops||[]).filter(function(s){ return !s.isReturnStop && !s.locked && s.type==='pickup'; }).map(function(s, k){ var x = Object.assign({}, s); x.__bh = true; if(k===0) x.__bhFirst = true; return x; }); rows = rows.concat(bhExtra); }
     var firstPick = (load.stops||[]).find(function(s){ return s.type==='pickup'; }) || {};
     var loadDate = firstPick.date || '';
     var loadDateTxt = loadDate ? mbolMD(loadDate, true) : (load.createdAt ? new Date(load.createdAt).toLocaleDateString('en-US') : '');
@@ -4884,12 +4885,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var wt = c.wt || (o.weight!=null ? o.weight : '');
       var val = c.value || (o.orderValue!=null ? o.orderValue : '');
       var fr = c.freight || (o.freightAmount!=null ? o.freightAmount : '');
-      tSU += mbolNum(su); tWt += mbolNum(wt); tVal += mbolNum(val); tFr += mbolNum(fr);
+      if(!s.__bh){ tSU += mbolNum(su); tWt += mbolNum(wt); tVal += mbolNum(val); tFr += mbolNum(fr); }
       var orderNo = c.orderNo || (o.ref ? (o.orderType==='deliverylog' ? o.ref : 'REQ-'+o.ref) : '');
       var contact = c.contact || o.contactName || '';
       var phone = c.phone || o.contactPhone || (o.orderType==='deliverylog' ? (o.contactNumbers||'') : '');
       var notes = c.notes || s.notes || o.notes || '';
-      return '<tr><td class="c">'+(i+1)+'</td>'+
+      return (s.__bhFirst ? '<tr class="bhsep"><td colspan="18" style="background:#E8E8E8;font-weight:800;letter-spacing:.06em;padding:6px 8px;">BACKHAUL PICKUPS — bring back to Pender</td></tr>' : '')+'<tr'+(s.__bh?' class="bh"':'')+'><td class="c">'+(i+1)+(s.__bh?'<br><span style="font-size:9px;font-weight:800;">BH</span>':'')+'</td>'+
         '<td>'+(staged?'<b>'+e(staged)+'</b><br>':'')+e(loadDate?mbolMD(loadDate):'')+(loadTimeTxt?'<br>'+e(loadTimeTxt.replace(':00','').replace(' ','')):'')+'</td>'+
         '<td>'+e(c.orderDate || mbolMD(o.orderDate, true))+'</td>'+
         '<td>'+e(orderNo)+'</td>'+
