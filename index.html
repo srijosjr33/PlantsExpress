@@ -9387,6 +9387,39 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }, true);
   var dlfOrigRender = renderDeliveryLog;
   renderDeliveryLog = function(){ var out = dlfOrigRender.apply(this, arguments); try{ dlfDecorate(); }catch(e){} return out; };
+  /* ===== Print: the BOL and the rate sheet shrink to fit on one page ===== */
+  var PXPF = {on:false};
+  function pxPrintFit(){
+    var c = document.getElementById('bolContent'); if(!c) return;
+    pxPrintUnfit();
+    var wide = c.classList.contains('mbol-wide');   // BOL prints landscape, rate sheet portrait
+    var DPI = 96, M = wide ? 0.35 : 0.4;
+    var pw = ((wide ? 11 : 8.5) - 2*M) * DPI, ph = ((wide ? 8.5 : 11) - 2*M) * DPI - 6;
+    c.style.width = pw+'px'; c.style.maxWidth = 'none'; c.style.padding = '0'; c.style.boxSizing = 'border-box';
+    ph = ph * 0.97;   // a little room for the printer
+    var z = 1;
+    for(var i = 0; i < 6; i++){
+      var h = c.getBoundingClientRect().height, w = c.getBoundingClientRect().width;
+      if(h <= ph + 0.5 && w <= pw + 0.5) break;
+      z = Math.max(0.4, Math.min(z * ph / h, z * pw / w) - 0.005);
+      c.style.zoom = String(z); c.style.width = (pw / z)+'px';
+      if(z <= 0.4) break;
+    }
+    PXPF.on = true;
+    document.body.style.setProperty('background', '#fff', 'important'); document.documentElement.style.setProperty('background', '#fff', 'important'); document.documentElement.style.setProperty('color-scheme', 'light', 'important');
+    var pg = document.getElementById('bolPageStyle');
+    if(pg) pg.textContent = wide ? '@media print{ @page{ size: landscape; margin: 0.35in; } #bolContent{max-width:none !important;padding:0 !important;} html,body{background:#fff !important;background-image:none !important;} }'
+                                 : '@media print{ @page{ size: portrait; margin: 0.4in; } #bolContent{max-width:none !important;padding:0 !important;} html,body{background:#fff !important;background-image:none !important;} }';
+  }
+  function pxPrintUnfit(){
+    var c = document.getElementById('bolContent'); if(!c || !PXPF.on) return;
+    c.style.width = ''; c.style.maxWidth = ''; c.style.padding = ''; c.style.boxSizing = ''; c.style.zoom = '';
+    PXPF.on = false;
+    document.body.style.removeProperty('background'); document.documentElement.style.removeProperty('background'); document.documentElement.style.removeProperty('color-scheme');
+  }
+  window.addEventListener('beforeprint', function(){ var v = document.getElementById('bolView'); if(v && !v.classList.contains('hidden')) pxPrintFit(); });
+  window.addEventListener('afterprint', pxPrintUnfit);
+  window.__pxPrintFit = pxPrintFit; window.__pxPrintUnfit = pxPrintUnfit;
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
