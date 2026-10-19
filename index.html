@@ -9297,6 +9297,96 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     }catch(e){}
     return out;
   };
+  /* ===== Dispatcher PENDER Orders: filter and sort by any column, like the workbook ===== */
+  var DLF = {flt:{}, sortK:null, sortDir:1, pop:null};
+  (function dlfCss(){
+    var s = document.createElement('style');
+    s.textContent = '.dlf-btn{float:right;margin-left:4px;opacity:.55;cursor:pointer;padding:0 2px;}.dlf-btn:hover{opacity:1;}.dlf-btn.on{opacity:1;color:#3FB88A;}'+
+      '.dlf-pop{position:fixed;z-index:9000;width:230px;background:#fff;color:#111;border:1px solid #888;border-radius:6px;box-shadow:0 8px 22px rgba(0,0,0,.4);padding:8px;font:13px Arial,Helvetica,sans-serif;text-align:left;}'+
+      '.dlf-pop a{color:#1a73e8;cursor:pointer;}.dlf-h{font-weight:700;margin-bottom:6px;}.dlf-sort,.dlf-all{margin-bottom:6px;font-size:12.5px;}'+
+      '.dlf-q{width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid #bbb;border-radius:3px;margin-bottom:6px;background:#fff !important;color:#111 !important;font:inherit;}'+
+      '.dlf-list{max-height:220px;overflow:auto;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:4px 0;}.dlf-list label{display:block;padding:2px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111;font-weight:400;text-transform:none;letter-spacing:0;}'+
+      '.dlf-list input{width:auto !important;margin:0 4px 0 0;}'+
+      '.dlf-f{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}.dlf-ok{background:#1a73e8;color:#fff;border:none;border-radius:3px;padding:4px 14px;cursor:pointer;font:inherit;}'+
+      '#dlfBar{font-size:12.5px;margin:0 0 6px;display:flex;gap:10px;align-items:center;}#dlfBar a{color:#97C459;cursor:pointer;text-decoration:underline;}';
+    document.head.appendChild(s);
+  })();
+  function dlfKey(v){ v = String(v==null?'':v).trim(); return v==='' ? '\u0000blank' : v; }
+  function dlfPending(){ return deliveryLogOrders.filter(function(r){ return r.status==='pending'; }); }
+  function dlfClose(){ if(DLF.pop){ DLF.pop.remove(); DLF.pop = null; } }
+  document.addEventListener('mousedown', function(e){ if(DLF.pop && !DLF.pop.contains(e.target) && !(e.target.closest && e.target.closest('.dlf-btn'))) dlfClose(); }, true);
+  function dlfDecorate(){
+    var wrap = document.getElementById('deliveryLogList'); if(!wrap) return;
+    var bar = document.getElementById('dlfBar');
+    if(!bar){ bar = document.createElement('div'); bar.id = 'dlfBar'; wrap.parentNode.insertBefore(bar, wrap); }
+    var table = wrap.querySelector('.pxq table'); if(!table){ bar.innerHTML = ''; return; }
+    var ths = table.querySelectorAll('thead th');
+    PXQ_COLS.forEach(function(c, i){
+      var th = ths[i+2]; if(!th) return;
+      var arrow = DLF.sortK===c.k ? (DLF.sortDir>0 ? ' ▲' : ' ▼') : '';
+      th.innerHTML = pxEsc(c.label)+arrow+'<span class="dlf-btn'+(DLF.flt[c.k]?' on':'')+'" data-k="'+c.k+'" title="Filter or sort '+pxEsc(c.label)+'"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg></span>';
+    });
+    var tb = table.querySelector('tbody'), trs = Array.prototype.slice.call(tb.children), byId = {};
+    dlfPending().forEach(function(r){ byId[r.id] = r; });
+    var ks = Object.keys(DLF.flt), shown = 0;
+    var items = trs.map(function(tr, i){ var cb = tr.querySelector('.dlog-cb'); return {tr:tr, r: cb ? byId[cb.getAttribute('data-id')] : null, i:i}; });
+    if(DLF.sortK){
+      var col = DLF.sortK, num = ['su','wt','value','freight'].indexOf(col)>-1, isDate = ['reqDate','orderDate'].indexOf(col)>-1;
+      var keyOf = function(it){ var v = it.r ? pxqValue(it.r, col) : ''; if(num){ var n = parseFloat(String(v).replace(/[$,\s]/g,'')); return isNaN(n) ? null : n; } if(isDate){ var m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); return m ? (m[3].length===2?'20'+m[3]:m[3])+('0'+m[1]).slice(-2)+('0'+m[2]).slice(-2) : (v||null); } return v===''? null : String(v).toLowerCase(); };
+      items.sort(function(a,b){ var x = keyOf(a), y = keyOf(b); if(x===y) return a.i-b.i; if(x===null) return 1; if(y===null) return -1; return (x<y?-1:1)*DLF.sortDir; });
+      items.forEach(function(it){ tb.appendChild(it.tr); });
+    }
+    items.forEach(function(it){
+      var ok = !it.r || ks.every(function(k){ return DLF.flt[k].indexOf(dlfKey(pxqValue(it.r, k)))>-1; });
+      it.tr.style.display = ok ? '' : 'none';
+      if(ok){ shown++; var rn = it.tr.querySelector('td.rn'); if(rn) rn.textContent = shown+1; }
+    });
+    var total = items.length, hiddenPicked = items.filter(function(it){ return it.tr.style.display==='none' && it.tr.querySelector('.dlog-cb:checked'); }).length;
+    bar.innerHTML = (ks.length || DLF.sortK) ? ('<span>'+(ks.length ? '<b>Filtered:</b> showing '+shown+' of '+total+' orders' : 'Sorted')+'</span>'+
+      (hiddenPicked ? '<span style="color:var(--amber);">'+hiddenPicked+' checked order'+(hiddenPicked===1?' is':'s are')+' hidden by the filter</span>' : '')+
+      '<a data-dlf="clear">Clear all filters</a>') : '';
+    var cl = bar.querySelector('[data-dlf=clear]'); if(cl) cl.addEventListener('click', function(){ DLF.flt = {}; DLF.sortK = null; dlfClose(); renderDeliveryLog(); });
+  }
+  function dlfOpen(k, btn){
+    dlfClose();
+    var col = PXQ_COLS.find(function(c){ return c.k===k; }); if(!col) return;
+    var vals = {}; dlfPending().forEach(function(r){ vals[dlfKey(pxqValue(r, k))] = true; });
+    var keys = Object.keys(vals).sort(function(a,b){ if(a==='\u0000blank') return 1; if(b==='\u0000blank') return -1; return a.localeCompare(b, undefined, {numeric:true}); });
+    var cur = DLF.flt[k], e = pxEsc;
+    var p = document.createElement('div'); p.className = 'dlf-pop';
+    p.innerHTML = '<div class="dlf-h">Filter by '+e(col.label)+'</div>'+
+      '<div class="dlf-sort"><a data-srt="1">Sort A→Z</a> · <a data-srt="-1">Sort Z→A</a></div>'+
+      '<input class="dlf-q" placeholder="Search values" spellcheck="false">'+
+      '<div class="dlf-all"><a data-all="1">Select all</a> · <a data-all="0">None</a></div>'+
+      '<div class="dlf-list">'+keys.map(function(v){ var on = !cur || cur.indexOf(v)>-1; return '<label data-v="'+e(v)+'"><input type="checkbox"'+(on?' checked':'')+'> '+(v==='\u0000blank' ? '(Blanks)' : e(v))+'</label>'; }).join('')+'</div>'+
+      '<div class="dlf-f"><a data-clr="1">Clear</a><button type="button" class="dlf-ok">OK</button></div>';
+    document.body.appendChild(p); DLF.pop = p;
+    var r = btn.getBoundingClientRect();
+    p.style.left = Math.max(6, Math.min(r.left - 160, window.innerWidth - 250))+'px';
+    p.style.top = Math.min(r.bottom + 4, window.innerHeight - p.offsetHeight - 6)+'px';
+    var q = p.querySelector('.dlf-q');
+    q.addEventListener('input', function(){ var t = q.value.trim().toLowerCase(); p.querySelectorAll('.dlf-list label').forEach(function(l){ l.style.display = !t || l.textContent.toLowerCase().indexOf(t)>-1 ? '' : 'none'; }); });
+    q.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); p.querySelector('.dlf-ok').click(); } if(ev.key==='Escape') dlfClose(); });
+    p.addEventListener('click', function(ev){
+      var a = ev.target.closest('a, button'); if(!a) return;
+      if(a.hasAttribute('data-srt')){ DLF.sortK = k; DLF.sortDir = +a.getAttribute('data-srt'); dlfClose(); renderDeliveryLog(); return; }
+      if(a.hasAttribute('data-all')){ var on = a.getAttribute('data-all')==='1'; p.querySelectorAll('.dlf-list label').forEach(function(l){ if(l.style.display!=='none') l.querySelector('input').checked = on; }); return; }
+      if(a.hasAttribute('data-clr')){ delete DLF.flt[k]; dlfClose(); renderDeliveryLog(); return; }
+      if(a.classList.contains('dlf-ok')){
+        var picked = [], all = true;
+        p.querySelectorAll('.dlf-list label').forEach(function(l){ if(l.querySelector('input').checked) picked.push(l.getAttribute('data-v')); else all = false; });
+        if(all) delete DLF.flt[k]; else DLF.flt[k] = picked;
+        dlfClose(); renderDeliveryLog();
+      }
+    });
+    setTimeout(function(){ try{ q.focus(); }catch(x){} }, 0);
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('#deliveryLogList .dlf-btn'); if(!b) return;
+    e.preventDefault(); e.stopPropagation(); dlfOpen(b.getAttribute('data-k'), b);
+  }, true);
+  var dlfOrigRender = renderDeliveryLog;
+  renderDeliveryLog = function(){ var out = dlfOrigRender.apply(this, arguments); try{ dlfDecorate(); }catch(e){} return out; };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
