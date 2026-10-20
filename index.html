@@ -6664,7 +6664,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     loads.forEach(function(load){
       if(!load.isPender || load.status==='canceled' || pxIsArchived(load)) return;
       var isBh = load.direction==='backhaul';
-      var ids = (load.sourceRequestIds||[]).filter(function(id){ return String(id).indexOf('wb_')===0; }).map(function(id){ return String(id).slice(3); });
+      var hasWbStops = (load.stops||[]).some(function(s){ return s.orderId && String(s.orderId).indexOf('wb_')===0; });
+      var ids = (load.sourceRequestIds||[]).filter(function(id){ return String(id).indexOf('wb_')===0 && (!hasWbStops || (load.stops||[]).some(function(s){ return s.orderId===id; })); }).map(function(id){ return String(id).slice(3); });
       if(!ids.length) return;
       var firstDel = (load.stops||[]).find(function(s){ return s.type==='delivery' && !s.isReturnStop; }) || {};
       var firstPickT = (load.stops||[]).find(function(s){ return s.type==='pickup'; }) || {};
@@ -9420,6 +9421,102 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   window.addEventListener('beforeprint', function(){ var v = document.getElementById('bolView'); if(v && !v.classList.contains('hidden')) pxPrintFit(); });
   window.addEventListener('afterprint', pxPrintUnfit);
   window.__pxPrintFit = pxPrintFit; window.__pxPrintUnfit = pxPrintUnfit;
+  /* ===== Taking orders off a built load: choose "back to the workbook" or "delete for good" ===== */
+  var PXRO = {pass:false, choices:null};
+  function pxroOrder(id){ return deliveryLogOrders.find(function(x){ return x.id===id; }) || requests.find(function(x){ return x.id===id; }) || null; }
+  function pxroDesc(id){
+    var o = pxroOrder(id) || {}, c = o.wbCells || {};
+    var name = c.customer || o.shipperName || 'Order', no = c.orderNo || (o.ref ? (o.orderType==='deliverylog' ? o.ref : 'REQ-'+o.ref) : '');
+    var city = c.city || ((o.stops||[])[0]||{}).city || '';
+    return {name:name, no:no, city:city, value:c.value || (o.orderValue!=null ? o.orderValue : ''), wb: String(id).indexOf('wb_')===0};
+  }
+  function pxroRemoved(load, stops){
+    var had = function(id){ return (load.stops||[]).some(function(s){ return s.orderId===id; }); };
+    return (load.sourceRequestIds||[]).filter(function(id){
+      if(!pxroOrder(id)) return false;
+      if(stops.some(function(s){ return s.orderId===id; })) return false;
+      return had(id) || String(id).indexOf('wb_')===0;   // a workbook order with no stop left on the truck
+    });
+  }
+  function pxroApply(load, choices){
+    var ids = Object.keys(choices||{}); if(!ids.length) return;
+    var back = [], gone = [];
+    ids.forEach(function(rid){
+      if((load.stops||[]).some(function(s){ return s.orderId===rid; })) return;   // still on the truck after all
+      load.sourceRequestIds = (load.sourceRequestIds||[]).filter(function(x){ return x!==rid; });
+      var onOther = loads.some(function(l){ return l.id!==load.id && l.status!=='canceled' && (l.sourceRequestIds||[]).indexOf(rid)>-1; });
+      if(onOther) return;
+      var d = deliveryLogOrders.find(function(x){ return x.id===rid; }), r = requests.find(function(x){ return x.id===rid; });
+      var label = pxroDesc(rid); label = label.name+(label.no ? ' #'+label.no : '');
+      if(choices[rid]==='delete'){
+        if(r){ r.status = 'canceled'; if(window.__pxShareRequest){ r.editedAt = Date.now(); window.__pxShareRequest(r); } }
+        if(d){
+          d.status = 'canceled';
+          if(d.wbId){
+            if(PX.db) PX.db.collection('requests').doc(d.wbId).update({status:'Canceled', archived:true, archivedAt:Date.now(), onTruck:false}).catch(function(){});
+            else { try{ var rows = JSON.parse(localStorage.getItem(PX_LOCAL_REQ)||'[]'); rows.forEach(function(w){ if(w.id===d.wbId){ w.status='Canceled'; w.archived=true; w.onTruck=false; } }); localStorage.setItem(PX_LOCAL_REQ, JSON.stringify(rows)); }catch(e){} }
+          }
+        }
+        gone.push(label);
+      } else {
+        if(r && r.status!=='canceled') r.status = 'pending';
+        if(d) d.status = 'pending';
+        back.push(label);
+      }
+    });
+    if(back.length) addEvent(load, 'Taken off the truck and put back in the workbook by '+(session && session.name || 'dispatch')+': '+back.join(', '));
+    if(gone.length) addEvent(load, 'Taken off the truck and deleted for good by '+(session && session.name || 'dispatch')+': '+gone.join(', '));
+  }
+  (function pxroModal(){
+    var m = document.createElement('div'); m.id = 'pxroModal'; m.className = 'modal-bg hidden';
+    m.innerHTML = '<div class="modal" style="max-width:560px;"><h3 class="hd" id="pxroTitle">Orders taken off this load</h3>'+
+      '<p style="margin-bottom:10px;">What should happen to each order you took off?</p><div id="pxroList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>'+
+      '<div class="btn-row"><button class="btn ghost" id="pxroBack" style="flex:1;">Go back to the load</button><button class="btn primary" id="pxroSave" style="flex:1;">Save load</button></div></div>';
+    document.body.appendChild(m);
+    document.getElementById('pxroBack').addEventListener('click', function(){ m.classList.add('hidden'); });
+    document.getElementById('pxroSave').addEventListener('click', function(){
+      var ch = {};
+      m.querySelectorAll('.pxro-row').forEach(function(row){ var v = row.querySelector('input:checked'); ch[row.getAttribute('data-id')] = v ? v.value : 'back'; });
+      PXRO.choices = ch; m.classList.add('hidden');
+      PXRO.pass = true; try{ document.getElementById('saveLoadBtn').click(); } finally { PXRO.pass = false; }
+    });
+  })();
+  document.addEventListener('click', function(e){
+    if(!e.target.closest || !e.target.closest('#saveLoadBtn')) return;
+    var editId = window.__editingLoadId; if(!editId) return;
+    var load = loads.find(function(l){ return l.id===editId; }); if(!load) return;
+    if(PXRO.pass){
+      var ch = PXRO.choices; PXRO.choices = null;
+      setTimeout(function(){
+        var l = loads.find(function(x){ return x.id===editId; }); if(!l || !ch) return;
+        if(l.pendingChange){ l.pendingChange.removeChoices = ch; persistData(); }   // carrier must accept first
+        else { pxroApply(l, ch); persistData(); try{ renderAll(); }catch(x){} }
+      }, 0);
+      return;
+    }
+    var gone = pxroRemoved(load, draftStops); if(!gone.length) return;
+    e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+    var esc = pxEsc, list = document.getElementById('pxroList');
+    document.getElementById('pxroTitle').textContent = gone.length===1 ? '1 order taken off '+pxLoadNo(load.ref) : gone.length+' orders taken off '+pxLoadNo(load.ref);
+    list.innerHTML = gone.map(function(id){
+      var o = pxroDesc(id);
+      return '<div class="pxro-row" data-id="'+esc(id)+'" style="border:1px solid var(--border);border-radius:8px;padding:9px 11px;">'+
+        '<div style="font-weight:700;margin-bottom:6px;">'+esc(o.name)+(o.no ? ' <span style="opacity:.7;font-weight:400;">#'+esc(o.no)+'</span>' : '')+(o.city ? ' <span style="opacity:.7;font-weight:400;">· '+esc(o.city)+'</span>' : '')+(o.value!=='' ? ' <span style="opacity:.7;font-weight:400;">· $'+esc(o.value)+'</span>' : '')+'</div>'+
+        '<label style="display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:13px;"><input type="radio" name="pxro_'+esc(id)+'" value="back" checked style="width:auto;"> Put it back '+(o.wb ? 'in the workbook (PENDER Orders)' : 'on the pending list')+'</label>'+
+        '<label style="display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:13px;color:#F28B82;"><input type="radio" name="pxro_'+esc(id)+'" value="delete" style="width:auto;"> Delete it for good'+(o.wb ? ' (taken out of the reps’ workbook)' : '')+'</label></div>';
+    }).join('');
+    document.getElementById('pxroModal').classList.remove('hidden');
+  }, true);
+  // a claimed load: the choices wait until the carrier accepts the change
+  var pxroOrigCr = pxcrApply;
+  pxcrApply = function(m){
+    var waiting = loads.filter(function(l){ return l.pendingChange && l.pendingChange.removeChoices; }).map(function(l){ return {l:l, ch:l.pendingChange.removeChoices, at:l.pendingChange.proposedAt}; });
+    var out = pxroOrigCr.apply(this, arguments);
+    var hit = false;
+    waiting.forEach(function(w){ if(!w.l.pendingChange){ pxroApply(w.l, w.ch); hit = true; } });
+    if(hit){ persistData(); try{ renderAll(); }catch(e){} }
+    return out;
+  };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
