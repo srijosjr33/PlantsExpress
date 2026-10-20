@@ -9517,6 +9517,55 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(hit){ persistData(); try{ renderAll(); }catch(e){} }
     return out;
   };
+  /* ===== Clicking × on an order's stop while editing a load: ask right away, and take the order off the truck at once ===== */
+  var PXRN = {id:null, loadId:null, idx:-1};
+  (function pxrnModal(){
+    var m = document.createElement('div'); m.id = 'pxrnModal'; m.className = 'modal-bg hidden';
+    m.innerHTML = '<div class="modal" style="max-width:520px;"><h3 class="hd" id="pxrnTitle">Take this order off the truck?</h3>'+
+      '<div id="pxrnOrder" style="border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin:6px 0 12px;"></div>'+
+      '<p style="margin-bottom:12px;">It comes off the truck right away. The carrier doesn’t need to approve this part.</p>'+
+      '<div style="display:flex;flex-direction:column;gap:8px;">'+
+        '<button class="btn primary" id="pxrnBack">Put it back in the workbook (PENDER Orders)</button>'+
+        '<button class="btn ghost" id="pxrnDel" style="color:#F28B82 !important;border-color:#D93025 !important;">Delete it for good</button>'+
+        '<button class="btn ghost" id="pxrnKeep">Cancel — keep it on the truck</button>'+
+      '</div></div>';
+    document.body.appendChild(m);
+    document.getElementById('pxrnKeep').addEventListener('click', function(){ m.classList.add('hidden'); });
+    document.getElementById('pxrnBack').addEventListener('click', function(){ pxrnDo('back'); });
+    document.getElementById('pxrnDel').addEventListener('click', function(){ pxrnDo('delete'); });
+  })();
+  function pxrnDo(choice){
+    document.getElementById('pxrnModal').classList.add('hidden');
+    var id = PXRN.id, load = loads.find(function(l){ return l.id===PXRN.loadId; }); if(!id || !load) return;
+    var keepStop = function(s){ return s.orderId!==id; };
+    // off the build screen
+    for(var i = draftStops.length-1; i >= 0; i--){ if(draftStops[i].orderId===id) draftStops.splice(i, 1); }
+    // off the saved load right now (and off any change still waiting for the carrier)
+    load.stops = (load.stops||[]).filter(keepStop);
+    if(load.pendingChange && load.pendingChange.fields){
+      var f = load.pendingChange.fields;
+      if(f.stops) f.stops = f.stops.filter(keepStop);
+      if(f.sourceRequestIds) f.sourceRequestIds = f.sourceRequestIds.filter(function(x){ return x!==id; });
+    }
+    var ch = {}; ch[id] = choice;
+    pxroApply(load, ch);
+    persistData();
+    try{ renderStopBuilder(); }catch(e){}
+    try{ if(typeof pxSyncTrucks==='function') pxSyncTrucks(); }catch(e){}
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.rm-stop'); if(!b) return;
+    var editId = window.__editingLoadId; if(!editId) return;
+    var load = loads.find(function(l){ return l.id===editId; }); if(!load) return;
+    var i = parseInt(b.getAttribute('data-i'), 10), s = draftStops[i]; if(!s || !s.orderId) return;
+    if((load.sourceRequestIds||[]).indexOf(s.orderId)<0) return;   // added during this edit: just remove it as before
+    e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+    PXRN.id = s.orderId; PXRN.loadId = editId;
+    var o = pxroDesc(s.orderId), esc = pxEsc;
+    document.getElementById('pxrnOrder').innerHTML = '<b>'+esc(o.name)+'</b>'+(o.no ? ' <span style="opacity:.7;">#'+esc(o.no)+'</span>' : '')+(o.city ? ' <span style="opacity:.7;">· '+esc(o.city)+'</span>' : '')+(o.value!=='' ? ' <span style="opacity:.7;">· $'+esc(o.value)+'</span>' : '');
+    document.getElementById('pxrnTitle').textContent = 'Take this order off '+pxLoadNo(load.ref)+'?';
+    document.getElementById('pxrnModal').classList.remove('hidden');
+  }, true);
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
