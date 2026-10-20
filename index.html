@@ -4691,6 +4691,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var claimed = loads.filter(function(l){return !pxIsHiddenLoad(l) && (l.status==='claimed'||l.status==='completed'||l.status==='canceled') && pxMyNames('carrier').indexOf(l.claimedBy)>-1;});
     if(claimed.length===0){ mineList.innerHTML='<div class="panel empty"><div class="hd">No claimed loads yet</div>Claim a load from the Available tab.</div>'; return; }
     mineList.innerHTML='';
+    claimed.sort(function(a,b){ var x = pxLoadDateISO(a), y = pxLoadDateISO(b); if(x!==y) return x<y ? 1 : -1; return (b.createdAt||0)-(a.createdAt||0); });
     claimed.forEach(function(load){
       var pay = paymentBreakdown(load);
       var row=document.createElement('div'); row.className='mine-row';
@@ -4711,6 +4712,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '</select>'+timingControlHtml(load) : '<span class="badge '+load.status+'">'+statusLabel(load.status)+'</span>';
       row.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;width:100%;">'+
         '<div><div class="lc-id mono">'+pxLoadNo(load.ref)+'</div><div style="font-weight:600;">'+originCity(load)+' → '+destCity(load)+'</div>'+
+        '<div style="font-size:12.5px;margin:2px 0;">Loads <b>'+(function(){ var d = new Date(pxLoadDateISO(load)+'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'}); })()+'</b></div>'+
         '<div style="color:var(--text-dim);font-size:12px;">'+load.stops.length+' stops</div>'+
         '<div style="color:var(--text-dim);font-size:12px;">Your pay: <b style="color:var(--text);">'+money(carrierFullPay(load).total)+'</b> (line haul + dead head + fuel surcharge + unload fee)</div>'+canceledHtml+'</div>'+
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">'+
