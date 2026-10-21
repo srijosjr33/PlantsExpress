@@ -3265,7 +3265,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     {k:'phone',label:'Phone',w:112},{k:'email',label:'Email',w:170},{k:'extra1',label:'Alt. Contact',w:150},{k:'notes',label:'Notes',w:240},{k:'enteredBy',label:'Entered by',w:130}
   ];
   var PXQ_FROZEN = 5;
-  function pxqValue(r, k){
+  function pxqValue(r, k){ var v0 = pxqValue0(r, k); return (k==='value' || k==='freight') ? pxMoneyText(v0) : v0; }
+  function pxqValue0(r, k){
     if(r.wbCells){
       if(k==='enteredBy') return r.enteredBy || '';
       return r.wbCells[k] || '';
@@ -5250,7 +5251,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function cellDisplay(row, col){
     var v = cellRaw(row, col);
     if(!row || v==='') return '';
-    if(((row.fmt||{})[col.k]||{}).m){ var mn = parseNum(v); if(mn!=null && !isNaN(mn)) return (mn<0?'-':'')+'$'+Math.abs(mn).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+    if(col.type==='money' || ((row.fmt||{})[col.k]||{}).m){ var mn = parseNum(v); if(mn!=null && !isNaN(mn)) return (mn<0?'-':'')+'$'+Math.abs(mn).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
     return v;
   }
   function repName(row){ return (row && (row.repName || (row.createdBy===myId ? myName : ''))) || ''; }
@@ -6418,6 +6419,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function pxHex(buf){ return Array.from(new Uint8Array(buf)).map(function(b){return ('0'+b.toString(16)).slice(-2);}).join(''); }
   function pxHash(salt, pw){ return crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt+':'+pw)).then(pxHex); }
   function pxSalt(){ var a=new Uint8Array(12); crypto.getRandomValues(a); return pxHex(a.buffer); }
+  function pxMoneyText(v, whole){
+    if(v===undefined || v===null) return '';
+    var s = String(v).trim(); if(s==='') return '';
+    var n = parseFloat(s.replace(/[$,\s]/g,'')); if(isNaN(n) || !/^[\s$-]*[\d,]*\.?\d*\s*$/.test(s)) return s;
+    return (n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US', whole ? {maximumFractionDigits:0} : {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  // a money box shows plain digits while you type, and $ again when you leave it
+  document.addEventListener('focusin', function(e){ var el = e.target; if(!el.classList || !el.classList.contains('px-money')) return; var raw = String(el.value).replace(/[$,\s]/g,''); if(raw!==el.value){ el.value = raw; el.__pxMoneyRaw = raw; try{ el.select(); }catch(x){} } }, true);
+  document.addEventListener('focusout', function(e){ var el = e.target; if(!el.classList || !el.classList.contains('px-money')) return; setTimeout(function(){ if(document.activeElement!==el && el.value!=='' && el.__pxMoneyRaw!==undefined && el.value===el.__pxMoneyRaw){ el.value = pxMoneyText(el.value, el.getAttribute('data-k')==='goal'); } }, 0); }, true);
   function pxEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   /* --- rep accounts store --- */
@@ -7985,7 +7995,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var mi = +OV.month, mr = yr.filter(function(r){ return +r.ym.slice(5,7)===mi+1; });
     var e = function(v){ return pxEsc(v==null?'':v); };
     var ro = ovReadOnly();
-    var inp = function(r, k, val, ph, w){ if(ro) return '<span class="ov-ro">'+(e(val)||'—')+'</span>'; return '<input class="ov-in" data-load="'+e(r.l.id)+'" data-k="'+k+'" value="'+e(val)+'" placeholder="'+e(ph||'')+'" style="width:'+(w||70)+'px">'; };
+    var inp = function(r, k, val, ph, w){ var mk = (k==='incidentals' || k==='truckExp'); if(mk && val!=null && val!=='') val = pxMoneyText(val); if(ro) return '<span class="ov-ro">'+(e(val)||'—')+'</span>'; return '<input class="ov-in'+(mk?' px-money':'')+'" data-load="'+e(r.l.id)+'" data-k="'+k+'" value="'+e(val)+'" placeholder="'+e(ph||'')+'" style="width:'+(w||70)+'px">'; };
     var sum = {cost:0, fr:0, val:0, mi:0};
     var body = mr.map(function(r){
       sum.cost+=r.cost; sum.fr+=r.freight; sum.val+=r.value; sum.mi+=r.miles;
@@ -8416,7 +8426,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var todaySat = (function(){ var d = new Date(); d.setHours(12); while(d.getDay()!==6) d.setDate(d.getDate()+1); return sgIso(d); })();
     var cur = weeks.indexOf(todaySat) > -1 ? todaySat : null;
     var MONTHS = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
-    var cell = function(iso, k, v){ return edit ? '<input class="sg-in" data-w="'+iso+'" data-k="'+k+'" value="'+(v===undefined||v===null||v===''?'':e(String(v)))+'" inputmode="decimal">' : (k==='goal' ? sgM(sgNum(v)) : sgM2(sgNum(v))); };
+    var cell = function(iso, k, v){ return edit ? '<input class="sg-in px-money" data-w="'+iso+'" data-k="'+k+'" value="'+(v===undefined||v===null||v===''?'':e(k==='goal' ? pxMoneyText(v, true) : pxMoneyText(v)))+'" inputmode="decimal">' : (k==='goal' ? sgM(sgNum(v)) : sgM2(sgNum(v))); };
     if(!SG.week || weeks.indexOf(SG.week)<0) SG.week = cur || weeks[0];
     var wk = SG.week, wi = weeks.indexOf(wk), monD = new Date(wk+'T12:00:00'); monD.setDate(monD.getDate()-5); var monIso = sgIso(monD);
     var st = null; try{ var rd = SG.inAdmin ? sgReader() : PX.wb; st = (rd && rd.salesStats) ? rd.salesStats(monIso, wk) : null; }catch(e){}
