@@ -6617,6 +6617,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       stops: [{type:'delivery', company:t('customer'), address:t('address'), city:t('city'), state:t('state').toUpperCase(), zip:t('zip'), date:req, time:'', notes:t('notes')}]
     };
   }
+  function pxTrucksKnown(){ try{ return !PX.db || typeof PXB==='undefined' || !!PXB.ready; }catch(e){ return true; } }
+  function pxOnActiveTruck(oid){ return loads.some(function(x){ return x.status!=='canceled' && !pxIsArchived(x) && (x.sourceRequestIds||[]).indexOf(oid)>-1; }); }
   function pxSyncWorkbook(list){
     PX.requestRows = list; try{ pxAdminRender(); }catch(e){}
     var changed = false, seen = {};
@@ -6628,8 +6630,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var existing = idx>-1 ? deliveryLogOrders[idx] : null;
       // only the dispatcher's screen (the one that builds trucks) marks orders on/off a truck;
       // other screens don't know the trucks yet and were flipping every order back and forth
-      if(PX.db && existing && session && session.role==='dispatcher'){
-        var onTruck = existing.status==='patched';
+      if(PX.db && existing && session && session.role==='dispatcher' && pxTrucksKnown()){
+        var onTruck = pxOnActiveTruck(id);
+        if(onTruck && existing.status==='pending'){ existing.status = 'patched'; changed = true; }
         if(!!r.onTruck !== onTruck) PX.db.collection('requests').doc(r.id).update({onTruck:onTruck}).catch(function(){});
         var lockLoad = onTruck ? loads.find(function(l){ return (l.sourceRequestIds||[]).indexOf(id)>-1; }) : null;
         var truckLocked = !!(lockLoad && !lockLoad.editUnlocked && (lockLoad.status==='completed' || (lockLoad.status==='claimed' && LOCKED_STAGES[lockLoad.deliveryStage])));
@@ -7798,6 +7801,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   // workbook lines lock when their truck reaches Loading (and unlock if dispatch unlocks the load)
   function pxLockRows(){
     if(!session || session.role!=='dispatcher') return;
+    if(!pxTrucksKnown()) return;   // wait until this screen has the shared trucks
     var lockedFor = function(rowId){
       var l = loads.find(function(x){ return x.status!=='canceled' && (x.sourceRequestIds||[]).indexOf('wb_'+rowId)>-1; });
       return !!(l && !l.editUnlocked && (l.status==='completed' || (l.status==='claimed' && LOCKED_STAGES[l.deliveryStage])));
@@ -9568,6 +9572,17 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     document.getElementById('pxrnTitle').textContent = 'Take this order off '+pxLoadNo(load.ref)+'?';
     document.getElementById('pxrnModal').classList.remove('hidden');
   }, true);
+  /* ===== once the shared trucks arrive, orders on them are marked on a truck on this computer too (fixes a new or cleared computer) ===== */
+  function pxOnTruckHeal(){
+    if(!session || session.role!=='dispatcher' || !pxTrucksKnown()) return;
+    var hit = false;
+    deliveryLogOrders.forEach(function(d){ if(d.status==='pending' && pxOnActiveTruck(d.id)){ d.status = 'patched'; hit = true; } });
+    requests.forEach(function(r){ if(r.status==='pending' && pxOnActiveTruck(r.id)){ r.status = 'patched'; hit = true; } });
+    if(hit){ persistData(); try{ renderAll(); }catch(e){} }
+    else { try{ pxLockRows(); }catch(e){} }
+  }
+  var pxOthOrigApply = pxbApply;
+  pxbApply = function(){ var out = pxOthOrigApply.apply(this, arguments); try{ pxOnTruckHeal(); }catch(e){} return out; };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
