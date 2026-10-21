@@ -4911,7 +4911,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td>'+e(c.terms || o.terms || '')+'</td>'+
         '<td>'+e(c.city || s.city || '')+'</td>'+
         '<td>'+e([(c.state || s.state || ''), (c.zip || s.zip || '')].filter(Boolean).join(' '))+'</td>'+
-        '<td></td>'+
+        '<td class="c">'+e(c.zone || o.freightZone || '')+'</td>'+
         '<td class="r">'+e(fr===''?'':mbolMoney(fr))+'</td>'+
         '<td class="c">'+e(c.tag || o.tags || '')+'</td>'+
         '<td>'+e(s.time ? fmtTime(s.time) : '')+'</td>'+
@@ -4946,7 +4946,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           '<div class="mbol-sig">DRIVER SIGNATURE</div></div>'+
       '</div>'+
       '<table class="mbol-grid"><thead><tr>'+
-        '<th>STOP SEQ</th><th>LOAD DATE</th><th>ORDER DATE</th><th>ORDER NUMBER</th><th>CUSTOMER</th><th>SHIP TO ADDRESS</th><th>SU</th><th>EST WT</th><th>VALUE</th><th>TERMS</th><th>CITY</th><th>STATE ZIP</th><th>CUST TYPE</th><th>FREIGHT CHARGE</th><th>TAG Y/N</th><th>ETA</th><th>SALES REP</th><th>CONTACT / PHONE</th>'+
+        '<th>STOP SEQ</th><th>LOAD DATE</th><th>ORDER DATE</th><th>ORDER NUMBER</th><th>CUSTOMER</th><th>SHIP TO ADDRESS</th><th>SU</th><th>EST WT</th><th>VALUE</th><th>TERMS</th><th>CITY</th><th>STATE ZIP</th><th>FREIGHT ZONE</th><th>FREIGHT CHARGE</th><th>TAG Y/N</th><th>ETA</th><th>SALES REP</th><th>CONTACT / PHONE</th>'+
       '</tr></thead><tbody>'+body+
         '<tr class="tot"><td colspan="6" class="r">TOTALS</td><td class="r">'+r2(tSU)+'</td><td class="r">'+r2(tWt)+'</td><td class="r">'+mbolMoney(tVal)+'</td><td colspan="4"></td><td class="r">'+mbolMoney(tFr)+'</td><td colspan="4"></td></tr>'+
       '</tbody></table>'+
