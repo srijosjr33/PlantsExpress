@@ -5514,6 +5514,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           var sp = stops[+el.getAttribute('data-i')] || {rowId:id};
           var L = confLetter(t, sp, row);
           var url = 'mailto:'+encodeURIComponent(L.to)+'?subject='+encodeURIComponent(L.subject)+'&body='+encodeURIComponent(L.body);
+          try{ var ccName = (row && row.cells && row.cells.salesRep) || (row && row.repName) || ''; var cc = window.__pxRepEmail ? window.__pxRepEmail(ccName) : ''; if(cc && cc.toLowerCase()!==String(L.to||'').toLowerCase()) url += '&cc='+encodeURIComponent(cc); }catch(x){}
           try{ var w = window.open(url, '_blank'); if(!w) window.location.href = url; }catch(err){ window.location.href = url; }
           cf.emailedAt = Date.now(); cf.emailedBy = myName||'';
         } else { cf.emailedAt = null; cf.emailedBy = null; }
@@ -6601,7 +6602,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(!name || pw.length < 4){ msg.style.color='var(--danger)'; msg.textContent = 'Enter a name and a password of at least 4 characters.'; return; }
     var existing = pxFindRep(name), id = existing ? existing.id : pxNewId(), salt = pxSalt();
     pxHash(salt, pw).then(function(h){
-      return pxSetRep(id, {name:name, salt:salt, hash:h, createdAt: existing && existing.createdAt || Date.now(), role: (existing && existing.role) || 'rep'});
+      return pxSetRep(id, {name:name, salt:salt, hash:h, createdAt: existing && existing.createdAt || Date.now(), role: (existing && existing.role) || 'rep', email: (existing && existing.email) || ''});
     }).then(function(){
       msg.style.color='var(--available)';
       msg.textContent = existing ? 'Password updated for '+name+'.' : name+' can now sign in under PENDER Nursery Orders.';
@@ -7283,8 +7284,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function pxAdmPwTable(list, kind){
     if(!list.length) return '<div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">None yet.</div>';
     var co = kind==='shipper', ca = kind==='carrier', rp = kind==='rep';
-    return '<div style="overflow-x:auto;"><table class="sheet-table adm-table" style="margin-bottom:16px;"><thead><tr><th>Name</th>'+(rp?'<th>Role</th>':'')+(co?'<th>Street address</th><th>City</th><th>State</th><th>Zip</th><th>Contact name</th><th>Phone</th><th>Email</th>':'')+(ca?'<th>Status</th><th>MC #</th><th>Contact</th><th>Phone</th><th>Documents</th>':'')+'<th>Added</th><th>New password</th><th></th></tr></thead><tbody>'+
-      list.map(function(x){ return '<tr><td>'+pxEsc(x.name)+'</td>'+(rp?'<td><select class="adm-rep-role" data-id="'+pxEsc(x.id)+'"><option value="rep"'+(x.role==='support'?'':' selected')+'>Sales rep</option><option value="support"'+(x.role==='support'?' selected':'')+'>Sales support</option></select></td>':'')+(co?'<td>'+pxEsc(x.address||'')+'</td><td>'+pxEsc(x.city||'')+'</td><td>'+pxEsc(x.state||'')+'</td><td>'+pxEsc(x.zip||'')+'</td><td>'+pxEsc(x.contact||'')+'</td><td>'+pxEsc(x.phone||'')+'</td><td>'+pxEsc(x.email||'')+'</td>':'')+
+    return '<div style="overflow-x:auto;"><table class="sheet-table adm-table" style="margin-bottom:16px;"><thead><tr><th>Name</th>'+(rp?'<th>Role</th><th>Email</th>':'')+(co?'<th>Street address</th><th>City</th><th>State</th><th>Zip</th><th>Contact name</th><th>Phone</th><th>Email</th>':'')+(ca?'<th>Status</th><th>MC #</th><th>Contact</th><th>Phone</th><th>Documents</th>':'')+'<th>Added</th><th>New password</th><th></th></tr></thead><tbody>'+
+      list.map(function(x){ return '<tr><td>'+pxEsc(x.name)+'</td>'+(rp?'<td><select class="adm-rep-role" data-id="'+pxEsc(x.id)+'"><option value="rep"'+(x.role==='support'?'':' selected')+'>Sales rep</option><option value="support"'+(x.role==='support'?' selected':'')+'>Sales support</option></select></td>'+'<td>'+(x.email ? pxEsc(x.email) : '<span style="opacity:.55;">— add with Edit</span>')+'</td>':'')+(co?'<td>'+pxEsc(x.address||'')+'</td><td>'+pxEsc(x.city||'')+'</td><td>'+pxEsc(x.state||'')+'</td><td>'+pxEsc(x.zip||'')+'</td><td>'+pxEsc(x.contact||'')+'</td><td>'+pxEsc(x.phone||'')+'</td><td>'+pxEsc(x.email||'')+'</td>':'')+
         (ca?'<td>'+(x.pendingProfile?'<span class="badge pending" style="margin-right:4px;">Changes pending</span>':'')+((pxInhouseHas(x) || (x.pendingProfile && pxInhouseHas(x, x.pendingProfile.equipmentList))) ? (x.pxInhouseOK ? '<span class="badge available" style="margin-right:4px;">PX Inhouse ✓</span>' : '<span class="badge pending" style="margin-right:4px;">PX Inhouse request</span>') : '')+(x.registered ? (x.status==='approved'?'<span class="badge available">Approved</span>':x.status==='rejected'?'<span class="badge canceled">Rejected</span>':'<span class="badge pending">Pending</span>') : '<span class="badge canceled">Not registered</span>')+'</td><td>'+pxEsc(x.mc||'')+'</td><td>'+pxEsc(x.contact||'')+'</td><td>'+pxEsc(x.phone||'')+'</td>'+
           '<td>'+(x.coi?'<a href="'+pxEsc(pxDocUrl(x.coi))+'" target="_blank" rel="noopener">Insurance</a>':'')+(x.coi&&x.w9?' · ':'')+(x.w9?'<a href="'+pxEsc(pxDocUrl(x.w9))+'" target="_blank" rel="noopener">W-9</a>':'')+'</td>':'')+
         '<td>'+(x.createdAt?new Date(x.createdAt).toLocaleDateString():'')+'</td>'+
@@ -7369,7 +7370,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   var PX_EDIT_FIELDS = {
     shipper: [['name','Company name'],['address','Street address'],['city','City'],['state','State'],['zip','Zip code'],['cphone','Company phone'],['contact','Contact name'],['phone','Phone'],['email','Email']],
     dispatcher: [['name','Dispatcher name']],
-    carrier: [['name','Company name'],['address','Address'],['city','City'],['state','State'],['zip','Zip'],['cphone','Company phone'],['contact','Contact name'],['phone','Contact number'],['email','Email'],['mc','MC number'],['equipment','Equipment offered'],['vehicles','Vehicle / unit numbers']], rep: [['name','Employee name']], admin: [['name','Admin name']]
+    carrier: [['name','Company name'],['address','Address'],['city','City'],['state','State'],['zip','Zip'],['cphone','Company phone'],['contact','Contact name'],['phone','Contact number'],['email','Email'],['mc','MC number'],['equipment','Equipment offered'],['vehicles','Vehicle / unit numbers']], rep: [['name','Employee name'],['email','Email (CC\u2019d on their delivery confirmation emails)']], admin: [['name','Admin name']]
   };
   var PX_KIND_LABEL = {shipper:'client', carrier:'carrier', rep:'Pender Nursery employee', admin:'admin', dispatcher:'dispatcher'};
   function pxAdmRecord(kind, id){
@@ -7656,7 +7657,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(pw.length < 4){ pxAdmMsg('Enter a new password of at least 4 characters.', true); return; }
       var salt = pxSalt();
       pxHash(salt, pw).then(function(h){
-        if(kind==='rep'){ var r = PX.reps.find(function(x){return x.id===id;}); return pxSetRep(id, {name:r.name, salt:salt, hash:h, createdAt:r.createdAt||Date.now(), role:r.role||'rep'}).then(function(){ return r.name; }); }
+        if(kind==='rep'){ var r = PX.reps.find(function(x){return x.id===id;}); return pxSetRep(id, {name:r.name, salt:salt, hash:h, createdAt:r.createdAt||Date.now(), role:r.role||'rep', email:r.email||''}).then(function(){ return r.name; }); }
         var colName = kind==='admin' ? 'admins' : 'accounts';
         var cur = PXS[colName].find(function(x){return x.id===id;});
         var data = Object.assign({}, cur, {salt:salt, hash:h}); delete data.id;
@@ -7684,7 +7685,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(!name || pw.length < 4){ pxAdmMsg('Enter a name and a password of at least 4 characters.', true); return; }
     var salt = pxSalt();
     pxHash(salt, pw).then(function(h){
-      if(kind==='rep'){ var ex = pxFindRep(name); return pxSetRep(ex ? ex.id : pxNewId(), {name:name, salt:salt, hash:h, createdAt: ex && ex.createdAt || Date.now(), role: (ex && ex.role) || 'rep'}); }
+      if(kind==='rep'){ var ex = pxFindRep(name); return pxSetRep(ex ? ex.id : pxNewId(), {name:name, salt:salt, hash:h, createdAt: ex && ex.createdAt || Date.now(), role: (ex && ex.role) || 'rep', email: (ex && ex.email) || ''}); }
       var ex2 = PXS.admins.find(function(x){ return String(x.name).trim().toLowerCase()===name.toLowerCase(); });
       return pxColSet('admins', ex2 ? ex2.id : 'adm_'+pxSlug(name), {name:name, salt:salt, hash:h, createdAt: ex2 && ex2.createdAt || Date.now()});
     }).then(function(){ pxAdmMsg((kind==='rep'?'Employee ':'Admin ')+name+' saved.'); document.getElementById(nameId).value=''; document.getElementById(passId).value=''; }).catch(pxAdmFail);
@@ -9601,6 +9602,13 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   var pxOthOrigApply = pxbApply;
   pxbApply = function(){ var out = pxOthOrigApply.apply(this, arguments); try{ pxOnTruckHeal(); }catch(e){} return out; };
+  /* rep email (Admin -> Pender Nursery employees -> Edit) is CC'd on that rep's confirmation emails */
+  window.__pxRepEmail = function(name){
+    var n = String(name||'').trim().toLowerCase(); if(!n) return '';
+    var r = (PX.reps||[]).find(function(x){ return String(x.name||'').trim().toLowerCase()===n; });
+    var em = r && r.email ? String(r.email).trim() : '';
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) ? em : '';
+  };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
