@@ -4147,7 +4147,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     }
     var acts = [];
     var locked = load.status!=='canceled' && loadEditLocked(load);
-    if((load.status==='claimed'||load.status==='completed')) acts.push(['view-bol-btn','View BOL']);
+    if(load.status!=='canceled') acts.push(['view-bol-btn','View BOL / rate sheet']);
     if(load.status!=='canceled' && !locked) acts.push(['edit-load-btn','Edit load']);
     if(load.status!=='canceled' && !locked) acts.push(['equip-swap-btn', isEditingEquip ? 'Close equipment change' : 'Change equipment']);
     if(locked) acts.push(['unlock-load-btn','Unlock for editing']);
@@ -4254,7 +4254,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           (load.status!=='canceled' && !loadEditLocked(load) ? '<button class="btn ghost small equip-swap-btn" data-id="'+load.id+'">'+(isEditingEquip?'Close':'Equip')+'</button>' : '')+
           (load.status!=='canceled' && !loadEditLocked(load) ? '<button class="btn ghost small edit-load-btn" data-id="'+load.id+'">Edit</button>' : '')+
           (load.status!=='canceled' && load.editUnlocked ? '<button class="btn ghost small relock-load-btn" data-id="'+load.id+'">Lock again</button>' : '')+
-          ((load.status==='claimed'||load.status==='completed') ? '<button class="btn ghost small view-bol-btn" data-id="'+load.id+'">BOL</button>' : '')+
+          (load.status!=='canceled' ? '<button class="btn ghost small view-bol-btn" data-id="'+load.id+'" title="Bill of Lading and carrier rate sheet">BOL / Rate</button>' : '')+
           (load.status==='claimed' && !load.pendingChange ? '<button class="btn primary small mark-complete-btn" data-id="'+load.id+'">Complete</button>' : '')+
           (load.status==='claimed' ? '<button class="btn ghost small reassign-btn" data-id="'+load.id+'" title="Move this load to a different carrier">Reassign</button>' : '')+
           (load.status==='claimed' ? '<button class="btn ghost small unclaim-btn" data-id="'+load.id+'" title="Carrier can\'t run this — reopen for other carriers">Unclaim</button>' : '')+
@@ -4324,7 +4324,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       btn.addEventListener('click', function(){ var id=btn.getAttribute('data-id'); var load=loads.find(function(l){return l.id===id;}); if(load) openLoadEditor(load); });
     });
     wrap.querySelectorAll('.view-bol-btn').forEach(function(btn){
-      btn.addEventListener('click', function(){ var id=btn.getAttribute('data-id'); var load=loads.find(function(l){return l.id===id;}); if(load) openBOL(load); });
+      btn.addEventListener('click', function(){ var id=btn.getAttribute('data-id'); var load=loads.find(function(l){return l.id===id;}); if(load) openBOL(load, {carrier:true}); });
     });
     wrap.querySelectorAll('.stage-select').forEach(function(sel){
       sel.addEventListener('change', function(){
