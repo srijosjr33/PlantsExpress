@@ -1009,6 +1009,7 @@
     </div>
 
     <div id="roleDispatcher" class="hidden">
+      <div id="pxNotesAlert" class="hidden" style="margin:0 0 14px;"></div>
       <div class="navtabs">
         <button data-tab="incoming" class="active">All Requests</button>
         <button data-tab="deliverylog">PENDER Orders</button>
@@ -3263,7 +3264,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     {k:'su',label:'SU',w:48},{k:'wt',label:'Est wt',w:62},{k:'value',label:'Order value',w:98},{k:'terms',label:'Terms',w:92},
     {k:'city',label:'City',w:170},{k:'state',label:'ST',w:38},{k:'zip',label:'Zip',w:56},{k:'zone',label:'Freight zone',w:84},
     {k:'freight',label:'Freight',w:90},{k:'tag',label:'Tag (Y/N)',w:56},{k:'salesRep',label:'Sales rep',w:130},{k:'contact',label:'Contact name',w:130},
-    {k:'phone',label:'Phone',w:112},{k:'email',label:'Email',w:170},{k:'extra1',label:'Alt. Contact',w:150},{k:'notes',label:'Notes',w:240},{k:'enteredBy',label:'Entered by',w:130}
+    {k:'phone',label:'Phone',w:112},{k:'email',label:'Email',w:170},{k:'extra1',label:'Alt. Contact',w:150},{k:'inhouse',label:'In-House notes',w:220},{k:'notes',label:'Drivers notes',w:240},{k:'enteredBy',label:'Entered by',w:130}
   ];
   var PXQ_FROZEN = 5;
   function pxqValue(r, k){ var v0 = pxqValue0(r, k); return (k==='value' || k==='freight') ? pxMoneyText(v0) : v0; }
@@ -4918,7 +4919,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td>'+e(s.time ? fmtTime(s.time) : '')+'</td>'+
         '<td>'+e(c.salesRep || o.salesRep || '')+'</td>'+
         '<td>'+e(contact)+(contact&&phone?'<br>':'')+e(phone)+'</td></tr>'+
-        '<tr class="notes"><td colspan="18"><b>SPECIAL NOTES:</b> '+e(notes)+'</td></tr>';
+        '<tr class="notes"><td colspan="18"><b>DRIVER NOTES:</b> '+e(notes)+'</td></tr>';
     }).join('');
     if(!rows.length) body = '<tr><td colspan="18" class="c" style="padding:14px;color:#666;">No stops on this load yet.</td></tr>';
     var r2 = function(n){ return String(Math.round(n*100)/100); };
@@ -5158,7 +5159,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     {k:'phone',    label:'Phone',              w:112},
     {k:'email',    label:'Email',              w:170},
     {k:'extra1',   label:'Alt. Contact',  w:150},
-    {k:'notes',    label:'Notes',              w:240},
+    {k:'inhouse',  label:'In-House notes',     w:220},
+    {k:'notes',    label:'Drivers notes',      w:240},
     {k:'rep',      label:'Entered by',         w:130, type:'rep'}
   ];
   var FZ_LIST = ['Flat','Below Min','19%','21%','23%','25%'];
@@ -5300,6 +5302,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   function storeUpdate(id, patch){
     var old = rows.get(id); if(!old) return;
+    try{ if(patch && patch.cells && ('notes' in patch.cells) && old.onTruck && String((old.cells||{}).notes||'').trim()!==String(patch.cells.notes||'').trim() && window.__pxNotesChanged){
+      var tk = (trucks||[]).find(function(t){ return t.status!=='canceled' && (t.orderIds||[]).indexOf(id)>-1; });
+      window.__pxNotesChanged({rowId:id, customer:(old.cells||{}).customer||'', orderNo:(old.cells||{}).orderNo||'', loadRef: tk ? tk.loadRef : '', from:(old.cells||{}).notes||'', to:patch.cells.notes||'', by: myName||''}); } }catch(x){}
     patch = fzPatch(old, patch);
     if(patch.cells || patch.fmt || ('status' in patch)){ try{ undoRecord({t:'u', id:id, inv:undoInverse(old, patch), fwd:JSON.parse(JSON.stringify(patch))}); }catch(e){} }
     var next = Object.assign({}, old, patch);
@@ -6285,7 +6290,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var weekEnd = function(ws){ var d = new Date(ws+'T12:00:00'); d.setDate(d.getDate()+7); return trkISO(d); };
     var tabsHtml = '<div class="wk-tabs">'+wk.map(function(w){ return '<button type="button" data-week="'+w+'" class="'+(w===view.truckWeek?'on':'')+'">DELIVERING '+trkMD(w)+' TO '+trkMD(weekEnd(w))+'</button>'; }).join('')+'</div>';
     var inWeek = list.filter(function(t){ return t.__week===view.truckWeek; }).sort(function(a,b){ return (a.__day+(a.loadTime||'')) < (b.__day+(b.loadTime||'')) ? -1 : 1; });
-    var COLS_W = ['','','STOP','LOAD','ORDER DATE','ORDER #','STAGED','CUSTOMER','ADDRESS','SU','EST WT','VALUE','TERMS','CITY','ST','ZIP','FREIGHT ZONE','FREIGHT','TAG Y/N','ETA','SALES REP','CONTACT / PHONE','EMAIL','NOTES'];
+    var COLS_W = ['','','STOP','LOAD','ORDER DATE','ORDER #','STAGED','CUSTOMER','ADDRESS','SU','EST WT','VALUE','TERMS','CITY','ST','ZIP','FREIGHT ZONE','FREIGHT','TAG Y/N','ETA','SALES REP','CONTACT / PHONE','EMAIL','IN-HOUSE NOTES','DRIVERS NOTES'];
     var head = '<tr>'+COLS_W.map(function(c, i){ return '<th'+(i<2?' class="lc"':'')+'>'+c+'</th>'; }).join('')+'</tr>';
     var body = '';
     var byDay = {}; inWeek.forEach(function(t){ var d = new Date((t.__day||view.truckWeek)+'T12:00:00'); var idx = (d.getDay()+6)%7; (byDay[idx] = byDay[idx] || []).push(t); });
@@ -6314,7 +6319,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
             ro('orderDate')+ro('orderNo')+ro('staged',null,'b')+ro('customer')+ed('address')+ed('su','num')+ed('wt','num')+ed('value','num')+ro('terms')+ed('city')+ed('state')+ed('zip')+(editable ? '<td class="ed"'+st('zone')+'><select class="fz-sel" data-row="'+esc(row.id)+'" data-k="zone">'+fzOptions(c.zone||'', true)+'</select></td>' : ro('zone'))+(fzPct(c.zone)!=null ? ro('freight', c.freight ? trkMoney(c.freight) : '', 'num fz-auto').replace('<td ', '<td title="Filled in from the freight zone" ') : ed('freight','num'))+ro('tag')+
             '<td>'+esc(trkTime(sp.time))+'</td><td>'+esc(c.salesRep || repName(row) || '')+'</td>'+
             (editable ? '<td class="ed ed-2"><input data-row="'+esc(row.id)+'" data-k="contact" value="'+esc(c.contact||'')+'" placeholder="Contact"><input data-row="'+esc(row.id)+'" data-k="phone" value="'+esc(c.phone||'')+'" placeholder="Phone"></td>' : '<td>'+esc(contact)+'</td>')+
-            ed('email')+ed('notes')+'</tr>';
+            ed('email')+ed('inhouse')+ed('notes')+'</tr>';
         }).join('');
         // left-column lines that didn't fit next to stops
         var extra = '';
@@ -9617,6 +9622,46 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var em = r && r.email ? String(r.email).trim() : '';
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) ? em : '';
   };
+  /* ===== Drivers notes changed on an order that's already on a truck: warn the dispatchers ===== */
+  var PXNA = {list:[]};
+  window.__pxNotesChanged = function(a){
+    if(!PX.db) return;
+    var id = String(a.rowId)+'_'+Date.now().toString(36);
+    PX.db.collection('notesAlerts').doc(id).set(Object.assign({}, a, {at:Date.now(), seen:false})).catch(function(){});
+  };
+  function pxnaRender(){
+    var box = document.getElementById('pxNotesAlert'); if(!box) return;
+    var open = PXNA.list.filter(function(x){ return !x.seen; }).sort(function(a,b){ return (b.at||0)-(a.at||0); });
+    if(!open.length || !(session && session.role==='dispatcher')){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+    var e = pxEsc, when = function(t){ return new Date(t).toLocaleString('en-US',{weekday:'short',month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'}); };
+    box.innerHTML = '<div style="border:2px solid #EF9F27;background:rgba(239,159,39,.14);border-radius:10px;padding:10px 14px;">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><b style="font-size:14.5px;">⚠️ Drivers notes changed on '+open.length+' order'+(open.length===1?'':'s')+' already on a truck — reprint the BOL</b>'+
+      '<button type="button" class="btn ghost small" data-na="all" style="margin-left:auto;">Got it — all</button></div>'+
+      open.map(function(x){
+        return '<div style="display:flex;gap:10px;align-items:flex-start;border-top:1px solid rgba(239,159,39,.35);padding:6px 0;font-size:12.5px;">'+
+          '<div style="flex:1;"><b>'+e(x.loadRef || 'Truck')+'</b> · '+e(x.customer)+(x.orderNo?' #'+e(x.orderNo):'')+'<br>'+
+          '<span style="opacity:.75;">Was:</span> '+(x.from ? '“'+e(x.from)+'”' : '<i>(blank)</i>')+' &nbsp;→&nbsp; <span style="opacity:.75;">Now:</span> <b>'+(x.to ? '“'+e(x.to)+'”' : '<i>(blank)</i>')+'</b>'+
+          '<div style="opacity:.65;font-size:11.5px;">Changed by '+e(x.by||'a sales rep')+' · '+when(x.at)+'</div></div>'+
+          '<button type="button" class="btn ghost small" data-na="'+e(x.id)+'">Got it</button></div>';
+      }).join('')+'</div>';
+    box.classList.remove('hidden');
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('#pxNotesAlert [data-na]'); if(!b || !PX.db) return;
+    var k = b.getAttribute('data-na'), who = (session && session.name) || '';
+    PXNA.list.filter(function(x){ return !x.seen && (k==='all' || x.id===k); }).forEach(function(x){
+      x.seen = true; PX.db.collection('notesAlerts').doc(x.id).update({seen:true, seenBy:who, seenAt:Date.now()}).catch(function(){});
+    });
+    pxnaRender();
+  });
+  (function pxnaStart(){
+    if(!PX.db){ setTimeout(pxnaStart, 500); return; }
+    PX.db.collection('notesAlerts').onSnapshot(function(snap){
+      PXNA.list = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      pxnaRender();
+    }, function(){});
+    setInterval(pxnaRender, 2000);
+  })();
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
