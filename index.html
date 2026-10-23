@@ -3579,7 +3579,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td><input placeholder="Zip" maxlength="10" data-i="'+i+'" data-field="zip" value="'+(s.zip||'')+'" style="border:none;background:transparent;padding:2px;width:70px;"'+dis+'></td>'+
         '<td>'+unitsCell+'</td>'+
         '<td><input type="date" data-i="'+i+'" data-field="date" value="'+(s.date||'')+'" style="border:none;background:transparent;padding:2px;"></td>'+
-        '<td><input type="time" data-i="'+i+'" data-field="time" value="'+(s.time||'')+'" style="border:none;background:transparent;padding:2px;"></td>'+
+        '<td><select data-i="'+i+'" data-field="time" class="px-half" style="padding:3px 4px;min-width:96px;">'+pxHalfHourOptions(s.time||'')+'</select></td>'+
         '<td><input placeholder="Notes" data-i="'+i+'" data-field="notes" value="'+(s.notes||'')+'" style="border:none;background:transparent;padding:2px;min-width:100px;"></td>'+
         '<td>'+(isLocked ? '' : '<button class="rm-stop" data-i="'+i+'">✕</button>')+'</td>'+
         '</tr>';
@@ -6430,6 +6430,13 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   // a money box shows plain digits while you type, and $ again when you leave it
   document.addEventListener('focusin', function(e){ var el = e.target; if(!el.classList || !el.classList.contains('px-money')) return; var raw = String(el.value).replace(/[$,\s]/g,''); if(raw!==el.value){ el.value = raw; el.__pxMoneyRaw = raw; try{ el.select(); }catch(x){} } }, true);
   document.addEventListener('focusout', function(e){ var el = e.target; if(!el.classList || !el.classList.contains('px-money')) return; setTimeout(function(){ if(document.activeElement!==el && el.value!=='' && el.__pxMoneyRaw!==undefined && el.value===el.__pxMoneyRaw){ el.value = pxMoneyText(el.value, el.getAttribute('data-k')==='goal'); } }, 0); }, true);
+  function pxHalfHourOptions(cur){
+    var lab = function(v){ var p = v.split(':'), h = +p[0], m = p[1]; return ((h%12)||12)+':'+m+' '+(h<12?'AM':'PM'); };
+    var out = '<option value="">— time —</option>', seen = false;
+    for(var h = 0; h < 24; h++){ ['00','30'].forEach(function(m){ var v = ('0'+h).slice(-2)+':'+m; if(v===cur) seen = true; out += '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+lab(v)+'</option>'; }); }
+    if(cur && !seen && /^\d{1,2}:\d{2}$/.test(cur)){ var c = ('0'+cur).slice(-5); out = out.replace('</option>', '</option><option value="'+cur+'" selected>'+lab(c)+' (as saved)</option>'); }
+    return out;
+  }
   function pxEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   /* --- rep accounts store --- */
