@@ -227,6 +227,7 @@
   .mbol-grid{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:auto;}
   .mbol-grid th,.mbol-grid td{border:1px solid #999;padding:4px 4px;vertical-align:top;text-align:left;}
   .mbol-grid th{background:#eee;font-size:8.5px;font-weight:700;vertical-align:middle;}
+  .mbol-grid td.mbol-terms{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.02em;}
   .mbol-grid td.r{text-align:right;white-space:nowrap;} .mbol-grid td.c{text-align:center;}
   .mbol-grid tr.notes td{font-size:9px;padding:3px 4px;}
   .mbol-grid tr.tot td{background:#eee;font-weight:700;}
@@ -4908,7 +4909,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td>'+e(c.customer || s.company || o.shipperName || '')+'</td>'+
         '<td>'+e(c.address || s.address || '')+'</td>'+
         '<td class="r">'+e(su)+'</td><td class="r">'+e(wt)+'</td><td class="r">'+e(val===''?'':mbolMoney(val))+'</td>'+
-        '<td>'+e(c.terms || o.terms || '')+'</td>'+
+        '<td class="mbol-terms">'+e(c.terms || o.terms || '')+'</td>'+
         '<td>'+e(c.city || s.city || '')+'</td>'+
         '<td>'+e([(c.state || s.state || ''), (c.zip || s.zip || '')].filter(Boolean).join(' '))+'</td>'+
         '<td class="c">'+e(c.zone || o.freightZone || '')+'</td>'+
