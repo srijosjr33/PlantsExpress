@@ -4729,6 +4729,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">'+
         stageControlHtml+
         (load.status!=='canceled' ? '<button class="btn ghost small view-bol-btn">View / Print BOL</button>' : '')+
+        (load.status==='claimed' ? '<button class="btn ghost small pxce-btn" data-id="'+load.id+'">Change driver / truck</button>' : '')+
         '</div></div>'+pendingHtml;
       var bolBtn = row.querySelector('.view-bol-btn');
       if(bolBtn) bolBtn.addEventListener('click', function(){ openBOL(load, {carrier:true}); });
@@ -8133,7 +8134,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var mine = pxMyNames('carrier');
     loads.forEach(function(l){
       if(mine.indexOf(l.claimedBy)<0) return;
-      var data = {status:l.status, deliveryStage:l.deliveryStage||'', timing:l.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', statusText: l.status==='claimed' ? loadStatusLabel(l) : statusLabel(l.status),
+      var data = {status:l.status, deliveryStage:l.deliveryStage||'', timing:l.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', equip:l.equip||'', statusText: l.status==='claimed' ? loadStatusLabel(l) : statusLabel(l.status),
         locked: !!(l.status==='completed' || (l.status==='claimed' && LOCKED_STAGES[l.deliveryStage])), by:session.name};
       var key = JSON.stringify(data); if(pxLsSent[l.id]===key) return; pxLsSent[l.id] = key;
       data.at = Date.now();
@@ -8152,8 +8153,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var before = JSON.stringify([l.status, l.deliveryStage, l.timing]);
       if(d.status==='completed' || d.status==='claimed'){ l.status = d.status; l.deliveryStage = d.deliveryStage || l.deliveryStage; }
       l.timing = d.timing || null;
+      var pxceWas = {v:l.vehicleNo||'', d:l.driverName||'', e:l.equip||''};
       if(d.vehicleNo) l.vehicleNo = d.vehicleNo;
       if(d.driverName){ l.driverName = d.driverName; l.driverPhone = d.driverPhone||''; }
+      if(d.equip && d.equip!==l.equip){ l.equipAlert = {from:l.equip, to:d.equip, at:Date.now(), ackBy:[], byCarrier:d.by||''}; l.equip = d.equip; }
+      var pxceMsg = [];
+      if((l.driverName||'')!==pxceWas.d) pxceMsg.push('driver '+(pxceWas.d||'(none)')+' \u2192 '+(l.driverName||'(none)'));
+      if((l.vehicleNo||'')!==pxceWas.v) pxceMsg.push('vehicle '+(pxceWas.v||'(none)')+' \u2192 '+(l.vehicleNo||'(none)'));
+      if((l.equip||'')!==pxceWas.e) pxceMsg.push('equipment '+(pxceWas.e||'(none)')+' \u2192 '+(l.equip||''));
+      if(pxceMsg.length){ try{ addEvent(l, (d.by||'Carrier')+' changed '+pxceMsg.join(', ')); }catch(e){} changed = true; try{ if(typeof pxbToast==='function') pxbToast('<div style="font-weight:700;font-size:14.5px;margin-bottom:3px;">\ud83d\ude9a '+pxEsc(pxLoadNo(l.ref))+' \u2014 carrier update</div><div><b>'+pxEsc(d.by||'Carrier')+'</b> changed '+pxEsc(pxceMsg.join(', '))+'.</div>'); }catch(e){} }
       if(JSON.stringify([l.status, l.deliveryStage, l.timing])!==before){ try{ addEvent(l, (d.by||'Carrier')+' updated: '+(d.statusText||'')); }catch(e){} changed = true; }
     });
     if(changed){ persistData(); try{ renderAll(); }catch(e){} }
@@ -8669,7 +8677,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         if(st && me.indexOf(st.by)>-1 && me.indexOf(obj.claimedBy)>-1 && (st.at||0) > (d.updatedAt||0)){
           if(st.status==='completed' || st.status==='claimed') obj.status = st.status;
           obj.deliveryStage = st.deliveryStage || obj.deliveryStage; obj.timing = st.timing || null;
-          if(st.vehicleNo) obj.vehicleNo = st.vehicleNo; if(st.driverName){ obj.driverName = st.driverName; obj.driverPhone = st.driverPhone||''; }
+          if(st.vehicleNo) obj.vehicleNo = st.vehicleNo; if(st.driverName){ obj.driverName = st.driverName; obj.driverPhone = st.driverPhone||''; } if(st.equip) obj.equip = st.equip;
         }
         next.push(obj);
       });
@@ -9662,6 +9670,60 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     }, function(){});
     setInterval(pxnaRender, 2000);
   })();
+  /* ===== Carrier: change driver / vehicle / equipment on a claimed load ===== */
+  var PXCE = {id:null};
+  (function pxceModal(){
+    var m = document.createElement('div'); m.id = 'pxceModal'; m.className = 'modal-bg hidden';
+    m.innerHTML = '<div class="modal" style="max-width:440px;"><h3 class="hd" id="pxceTitle">Change driver / truck</h3>'+
+      '<p style="margin-bottom:10px;">Dispatch sees the change right away.</p>'+
+      '<div class="field"><label for="pxceDriver">Driver</label><select id="pxceDriver"></select></div>'+
+      '<div id="pxceOther" class="hidden" style="display:flex;gap:8px;"><div class="field" style="flex:1;"><label for="pxceDName">Driver name</label><input id="pxceDName"></div><div class="field" style="flex:1;"><label for="pxceDPhone">Driver phone</label><input id="pxceDPhone"></div></div>'+
+      '<div class="field"><label for="pxceVehicle">Vehicle / unit number</label><select id="pxceVehicle"></select><input id="pxceVOther" class="hidden" placeholder="Vehicle / unit number" style="margin-top:6px;"></div>'+
+      '<div class="field"><label for="pxceEquip">Equipment</label><select id="pxceEquip"></select><div style="font-size:11.5px;color:var(--text-dim);margin-top:4px;">Changing equipment doesn’t change your pay. Dispatch is notified.</div></div>'+
+      '<div id="pxceMsg" style="font-size:12px;color:var(--danger);min-height:14px;"></div>'+
+      '<div class="btn-row"><button class="btn ghost" id="pxceCancel" style="flex:1;">Cancel</button><button class="btn primary" id="pxceSave" style="flex:1;">Save changes</button></div></div>';
+    document.body.appendChild(m);
+    document.getElementById('pxceCancel').addEventListener('click', function(){ m.classList.add('hidden'); });
+    document.getElementById('pxceDriver').addEventListener('change', function(){ document.getElementById('pxceOther').classList.toggle('hidden', this.value!=='__other'); });
+    document.getElementById('pxceVehicle').addEventListener('change', function(){ document.getElementById('pxceVOther').classList.toggle('hidden', this.value!=='__other'); });
+    document.getElementById('pxceSave').addEventListener('click', pxceSave);
+  })();
+  function pxceOpen(id){
+    var load = loads.find(function(l){ return l.id===id; }); if(!load) return;
+    PXCE.id = id;
+    var e = pxEsc, acct = pxFindAcct('carrier', session.name) || {}, drs = (acct.drivers||[]).filter(function(d){ return d && d.name; });
+    document.getElementById('pxceTitle').textContent = 'Change driver / truck — '+pxLoadNo(load.ref);
+    var curD = load.driverName||'', inList = drs.some(function(d){ return d.name===curD; });
+    document.getElementById('pxceDriver').innerHTML = (curD && !inList ? '<option value="__cur" selected>'+e(curD)+(load.driverPhone?' · '+e(load.driverPhone):'')+' (current)</option>' : (curD ? '' : '<option value="">— pick a driver —</option>'))+
+      drs.map(function(d, i){ return '<option value="'+i+'"'+(d.name===curD?' selected':'')+'>'+e(d.name)+(d.phone?' · '+e(d.phone):'')+'</option>'; }).join('')+'<option value="__other">+ Type a different driver</option>';
+    document.getElementById('pxceOther').classList.add('hidden'); document.getElementById('pxceDName').value = ''; document.getElementById('pxceDPhone').value = '';
+    var vs = pxCarrierVehicles(session.name) || [], curV = load.vehicleNo||'';
+    document.getElementById('pxceVehicle').innerHTML = (curV && vs.indexOf(curV)<0 ? '<option value="'+e(curV)+'" selected>'+e(curV)+' (current)</option>' : (curV ? '' : '<option value="">— pick a vehicle —</option>'))+
+      vs.map(function(v){ return '<option value="'+e(v)+'"'+(v===curV?' selected':'')+'>'+e(v)+'</option>'; }).join('')+'<option value="__other">+ Type a different vehicle</option>';
+    document.getElementById('pxceVOther').classList.add('hidden'); document.getElementById('pxceVOther').value = '';
+    var eqs = []; (acct.equipmentList||[]).forEach(function(x){ if(x && x.type && eqs.indexOf(x.type)<0) eqs.push(x.type); });
+    if(load.equip && eqs.indexOf(load.equip)<0) eqs.unshift(load.equip);
+    var lab = function(t){ try{ return equipLabel(t); }catch(x){ return t; } };
+    document.getElementById('pxceEquip').innerHTML = eqs.map(function(t){ return '<option value="'+e(t)+'"'+(t===load.equip?' selected':'')+'>'+e(lab(t))+(t===load.equip?' (current)':'')+'</option>'; }).join('');
+    document.getElementById('pxceMsg').textContent = '';
+    document.getElementById('pxceModal').classList.remove('hidden');
+  }
+  function pxceSave(){
+    var load = loads.find(function(l){ return l.id===PXCE.id; }); if(!load) return;
+    var acct = pxFindAcct('carrier', session.name) || {}, drs = (acct.drivers||[]).filter(function(d){ return d && d.name; });
+    var dv = document.getElementById('pxceDriver').value, name = load.driverName||'', phone = load.driverPhone||'';
+    if(dv==='__other'){ name = document.getElementById('pxceDName').value.trim(); phone = document.getElementById('pxceDPhone').value.trim(); if(!name){ document.getElementById('pxceMsg').textContent = 'Type the driver’s name.'; return; } }
+    else if(dv!=='' && dv!=='__cur' && drs[+dv]){ name = drs[+dv].name; phone = drs[+dv].phone||''; }
+    var vv = document.getElementById('pxceVehicle').value, veh = vv==='__other' ? document.getElementById('pxceVOther').value.trim() : vv;
+    var eq = document.getElementById('pxceEquip').value || load.equip;
+    var was = [load.driverName||'', load.vehicleNo||'', load.equip||''];
+    load.driverName = name; load.driverPhone = phone; load.vehicleNo = veh || ''; load.equip = eq;
+    if(JSON.stringify(was)===JSON.stringify([name, veh||'', eq])){ document.getElementById('pxceModal').classList.add('hidden'); return; }
+    try{ addEvent(load, session.name+' changed driver / truck'); }catch(x){}
+    persistData(); try{ renderAll(); }catch(x){}
+    document.getElementById('pxceModal').classList.add('hidden');
+  }
+  document.addEventListener('click', function(ev){ var b = ev.target.closest && ev.target.closest('.pxce-btn'); if(b) pxceOpen(b.getAttribute('data-id')); });
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
