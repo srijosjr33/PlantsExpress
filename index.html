@@ -2433,6 +2433,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       return;
     }
     var finishLogin = function(){
+      if(selectedRole==='carrier'){ try{ var _ca = pxFindAcct('carrier', name); if(_ca && _ca.name) name = _ca.name; }catch(e){} }
       session = {role: selectedRole, name: name, contactName: (selectedRole==='carrier' ? contactName : undefined)};
       persistSession();
       rememberMember(selectedRole, name, contactName);
@@ -4551,7 +4552,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   function pxMyNames(role){
     var names = [session.name];
-    try{ var a = pxFindAcct(role, session.name); if(a && a.previousNames) names = names.concat(a.previousNames); }catch(e){}
+    try{ var a = pxFindAcct(role, session.name); if(a){ if(a.name) names.push(a.name); if(a.previousNames) names = names.concat(a.previousNames); } }catch(e){}
     return names;
   }
   function pxScopeLoads(){
@@ -4699,7 +4700,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   function renderCarrierMine(){
     var mineList = document.getElementById('mineList');
-    var claimed = loads.filter(function(l){return !pxIsHiddenLoad(l) && (l.status==='claimed'||l.status==='completed'||l.status==='canceled') && pxMyNames('carrier').indexOf(l.claimedBy)>-1;});
+    var claimed = loads.filter(function(l){return !pxIsHiddenLoad(l) && (l.status==='claimed'||l.status==='completed'||l.status==='canceled') && pxMyNames('carrier').some(function(n){ return String(n||'').trim().toLowerCase()===String(l.claimedBy||'').trim().toLowerCase(); });});
     if(claimed.length===0){ mineList.innerHTML='<div class="panel empty"><div class="hd">No claimed loads yet</div>Claim a load from the Available tab.</div>'; return; }
     mineList.innerHTML='';
     claimed.sort(function(a,b){ var x = pxLoadDateISO(a), y = pxLoadDateISO(b); if(x!==y) return x<y ? 1 : -1; return (b.createdAt||0)-(a.createdAt||0); });
@@ -5108,7 +5109,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       safeRender('renderDispatchList', function(){ renderDispatchList('dispatchList', function(l){return !l.isPender;}); });
       safeRender('renderPenderDeliveryList', function(){ renderDispatchList('penderDeliveryList', function(l){return !!l.isPender;}, '<div class="panel empty"><div class="hd">No PENDER deliveries yet</div>Patch orders from the PENDER Orders tab to build the first truck.</div>'); });
     }
-    if(session.role==='carrier'){ safeRender('renderCarrierList', renderCarrierList); safeRender('renderCarrierMine', renderCarrierMine); }
+    if(session.role==='carrier'){ try{ var _ca = (typeof PXS!=='undefined' && PXS.ready) ? pxFindAcct('carrier', session.name) : null; if(_ca && _ca.name && _ca.name!==session.name){ session.name = _ca.name; persistSession(); var _w = document.getElementById('whoName'); if(_w) _w.textContent = session.name; } }catch(e){}
+      safeRender('renderCarrierList', renderCarrierList); safeRender('renderCarrierMine', renderCarrierMine); }
     safeRender('renderTracking', renderTracking);
     safeRender('renderDirectory', renderDirectory);
   }
