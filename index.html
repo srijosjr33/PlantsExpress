@@ -5443,7 +5443,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var dDate = t.date || t.loadDate || '', lt = t.loadTime ? trkTime(t.loadTime) : '';
     var rep = c.salesRep || myName || 'Pender Nursery';
     var addr = [c.address || sp.address, [c.city || sp.city, c.state || sp.state].filter(Boolean).join(', ')+((c.zip||sp.zip)?' '+(c.zip||sp.zip):'')].filter(function(x){ return String(x||'').trim(); }).join(', ');
-    var subject = 'Pender Nursery Delivery Confirmation · '+confLongDate(dDate)+(eta?' · '+eta:'');
+    var subject = 'DO NOT REPLY – Pender Nursery Delivery Confirmation · '+confLongDate(dDate)+(eta?' · '+eta:'');
     var body = 'Pender Nursery Delivery Confirmation\n\n'+
       'Dear '+(c.contact || 'Customer')+',\n\n'+
       'Thank you for your order. Here are the details for your upcoming delivery:\n\n'+
