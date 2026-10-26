@@ -6265,7 +6265,18 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   var trkEditing = false, trkDirty = false;
   var TRK_EDIT = {su:true, wt:true, value:true};
   function loadLocalTrucks(){ try{ trucks = JSON.parse(localStorage.getItem('px-pender-trucks')||'[]'); }catch(e){ trucks = []; } }
-  function renderTrucksIfOpen(){ try{ renderConfirm(); renderRepAlert(); }catch(e){} try{ renderGoalStrip(); }catch(e){} if(view.tab!=='trucks') return; if(trkEditing){ trkDirty = true; return; } renderTrucks(); }
+  function renderTrucksIfOpen(){ try{ renderConfirm(); renderRepAlert(); }catch(e){} try{ renderGoalStrip(); }catch(e){} if(view.tab!=='trucks') return; if(trkEditing){ trkLiveRender(); return; } renderTrucks(); }
+  var trkRerendering = false;
+  function trkLiveRender(){
+    var box = $('summary'), root = box && box.getRootNode ? box.getRootNode() : document, act = root && root.activeElement;
+    if(!act || !act.getAttribute || !act.getAttribute('data-row') || !box.contains(act)){ trkEditing = false; renderTrucks(); return; }
+    var keep = {row:act.getAttribute('data-row'), k:act.getAttribute('data-k'), v:act.value, s0:act.__start0, a:act.selectionStart, z:act.selectionEnd};
+    trkRerendering = true;
+    try{ renderTrucks(); } finally { trkRerendering = false; }
+    var n = box.querySelector('input[data-row="'+keep.row+'"][data-k="'+keep.k+'"]');
+    if(!n){ trkEditing = false; return; }
+    n.value = keep.v; n.__keepStart = keep.s0; n.focus(); try{ n.setSelectionRange(keep.a, keep.z); }catch(e){}
+  }
   function trkNum(v){ var n = parseFloat(String(v||'').replace(/[$,\s]/g,'')); return isNaN(n) ? 0 : n; }
   function trkFmt(n){ return String(Math.round(n*100)/100); }
   function trkDate(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (+m[2])+'/'+(+m[3])+'/'+m[1] : (iso||''); }
@@ -6315,7 +6326,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           var editable = !!row && canWrite && !t.locked && !row.truckLocked;
           var st = function(k){ var fm = (row && row.fmt && row.fmt[k]) || {}, s = ''; if(fm.bg) s += 'background-color:'+fm.bg+';'; if(fm.fg) s += 'color:'+fm.fg+';'; else if(fm.bg) s += 'color:#000;'; if(fm.b) s += 'font-weight:700;'; return s ? ' style="'+s+'"' : ''; };
           var ro = function(k, v, cls){ return '<td'+(cls?' class="'+cls+'"':'')+st(k)+'>'+esc(v!=null?v:(c[k]||''))+'</td>'; };
-          var ed = function(k, cls){ return editable ? '<td class="ed'+(cls?' '+cls:'')+'"'+st(k)+'><input data-row="'+esc(row.id)+'" data-k="'+k+'" value="'+esc(c[k]||'')+'" spellcheck="false" autocomplete="off"></td>' : ro(k, (k==='value'||k==='freight') && c[k] ? trkMoney(c[k]) : c[k]||'', cls); };
+          var ed = function(k, cls){ return editable ? '<td class="ed'+(cls?' '+cls:'')+'"'+st(k)+'><input'+((k==='value'||k==='freight')?' class="trk-money"':'')+' data-row="'+esc(row.id)+'" data-k="'+k+'" value="'+esc((k==='value'||k==='freight') && c[k] ? trkMoney(c[k]) : (c[k]||''))+'" spellcheck="false" autocomplete="off"></td>' : ro(k, (k==='value'||k==='freight') && c[k] ? trkMoney(c[k]) : c[k]||'', cls); };
           if(!row) return '<tr>'+(i===0?'%%LEFT%%':'')+'<td>'+(i+1)+'</td><td class="gone" colspan="'+(COLS_W.length-3)+'">This order was deleted from the workbook.</td></tr>';
           var contact = [c.contact, c.phone].filter(Boolean).join(' ');
           return '<tr'+(t.backhaul?' class="bh"':'')+'>'+(i===0?'%%LEFT%%':'')+'<td>'+(i+1)+'</td><td>'+esc(loadTxt)+'</td>'+
@@ -6354,13 +6365,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     box.querySelectorAll('.wk-tabs button').forEach(function(b){ b.addEventListener('click', function(){ view.truckWeek = b.getAttribute('data-week'); renderTrucks(); }); });
     box.querySelectorAll('input[data-row]').forEach(function(inp){
       var start = inp.value;
-      inp.addEventListener('focus', function(){ trkEditing = true; start = inp.value; });
+      inp.addEventListener('focus', function(){ trkEditing = true; if(inp.__keepStart!=null){ start = inp.__keepStart; inp.__keepStart = null; } else { if(inp.classList.contains('trk-money')) inp.value = String(inp.value).replace(/[$,\s]/g,''); start = inp.value; } inp.__start0 = start; });
       inp.addEventListener('keydown', function(e){
         if(e.key==='Enter'){ e.preventDefault(); inp.blur(); }
         else if(e.key==='Escape'){ e.preventDefault(); inp.value = start; inp.blur(); }
       });
       inp.addEventListener('blur', function(){
+        if(trkRerendering) return;
         trkEditing = false;
+        if(inp.classList.contains('trk-money') && inp.value.trim()!=='' && inp.value.trim()===String(start).trim()) setTimeout(function(){ if(document.activeElement!==inp && inp.isConnected) inp.value = trkMoney(inp.value); }, 0);
         var v = inp.value.trim(), changed = v !== String(start).trim();
         if(changed && canWrite){ var p = {}; p[inp.getAttribute('data-k')] = v; storeUpdate(inp.getAttribute('data-row'), {cells:p, updatedAt:Date.now()}); }
         if(changed || trkDirty){ trkDirty = false; setTimeout(function(){ if(!trkEditing) renderTrucks(); }, 0); }
