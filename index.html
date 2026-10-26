@@ -5522,7 +5522,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           var stops = (t.stops && t.stops.length) ? t.stops : (t.orderIds||[]).map(function(x){ return {rowId:x}; });
           var sp = stops[+el.getAttribute('data-i')] || {rowId:id};
           var L = confLetter(t, sp, row);
-          var url = 'mailto:'+encodeURIComponent(L.to)+'?subject='+encodeURIComponent(L.subject)+'&body='+encodeURIComponent(L.body);
+          var url = 'https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(L.to)+'&subject='+encodeURIComponent(L.subject)+'&body='+encodeURIComponent(L.body);
           try{ var ccName = (row && row.cells && row.cells.salesRep) || (row && row.repName) || ''; var cc = window.__pxRepEmail ? window.__pxRepEmail(ccName) : ''; if(cc && cc.toLowerCase()!==String(L.to||'').toLowerCase()) url += '&cc='+encodeURIComponent(cc); }catch(x){}
           try{ var w = window.open(url, '_blank'); if(!w) window.location.href = url; }catch(err){ window.location.href = url; }
           cf.emailedAt = Date.now(); cf.emailedBy = myName||'';
