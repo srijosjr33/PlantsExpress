@@ -8258,7 +8258,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(band){ freight = fqNum(band.charge)||0; line = 'Large order flat rate (orders '+fqWhole(band.minOrder)+'+ at '+band.min+'–'+band.max+' mi)'; underMin = false; }
     // what a truck to this customer costs: one way out loaded + fuel + one unload (no return trip)
     var eq = (document.getElementById('fq-truck')||{}).value || "26' Box Truck", rpm = equipRate(eq), dh = pxDefaultDeadheadPct()/100, fpm = fuelRateForEquip(eq), mi = miles||0;
-    var tc = {equip:eq, out: mi*rpm, back: window.__fqReturn ? mi*rpm*dh : 0, fuel: mi*fpm, unload: mi>0 ? 30 : 0, rpm:rpm, dh:dh, fpm:fpm};
+    var tc = {equip:eq, out: mi*rpm, back: window.__fqReturn ? mi*rpm*dh : 0, fuel: (eq==='PX Inhouse' ? 0 : mi*fpm), unload: mi>0 ? pxDefaultPerStop() : 0, rpm:rpm, dh:dh, fpm:fpm};
     tc.total = tc.out + tc.back + tc.fuel + tc.unload;
     return {zone:i, z:z, freight:Math.round(freight*100)/100, line:line, miles:miles, val:val, underMin:underMin, tc:tc};
   }
@@ -8280,8 +8280,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
             '<label class="fq-ret"><input type="checkbox" id="fqReturn"'+(window.__fqReturn?' checked':'')+'> Include return trip (dead head)</label>'+
             '<div class="calc-row"><span>Out: '+r.miles+' mi × '+fqMoney(t.rpm)+' line haul</span><span>'+fqMoney(t.out)+'</span></div>'+
             (window.__fqReturn ? '<div class="calc-row fq-new"><span>Return (dead head): '+r.miles+' mi × '+Math.round(t.dh*100)+'% of '+fqMoney(t.rpm)+'</span><span>'+fqMoney(t.back)+'</span></div>' : '')+
-            '<div class="calc-row"><span>Fuel surcharge: '+r.miles+' mi × '+fqMoney(t.fpm)+'</span><span>'+fqMoney(t.fuel)+'</span></div>'+
-            '<div class="calc-row"><span>Unload fee (1 stop)</span><span>'+fqMoney(t.unload)+'</span></div>'+
+            (t.equip==='PX Inhouse' ? '<div class="calc-row"><span>Fuel surcharge: none for our own trucks</span><span>'+fqMoney(0)+'</span></div>' : '<div class="calc-row"><span>Fuel surcharge: '+r.miles+' mi × '+fqMoney(t.fpm)+'</span><span>'+fqMoney(t.fuel)+'</span></div>')+
+            '<div class="calc-row"><span>Unload fee: 1 stop × '+fqMoney(pxDefaultPerStop())+'</span><span>'+fqMoney(t.unload)+'</span></div>'+
             '<div class="calc-row" style="font-weight:700;"><span>Truck cost</span><span>'+fqMoney(t.total)+'</span></div>'+
             '<div class="fq-rec '+(rec>=tg?'good':'bad')+'"><span>Freight recovery<small>freight ÷ truck cost · target '+tg+'%</small></span><b>'+rec+'%</b></div>'; })() : '');
     }
@@ -8291,7 +8291,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     document.getElementById('fqMaps').href = 'https://www.google.com/maps/dir/'+encodeURIComponent(PENDER_ORIGIN.address+', '+PENDER_ORIGIN.city+', '+PENDER_ORIGIN.state+' '+PENDER_ORIGIN.zip)+'/'+encodeURIComponent(dest||'');
     document.getElementById('fqCopy').style.display = PX.wb ? '' : 'none';
   }
-  (function(){ var sel = document.getElementById('fq-truck'); if(sel){ sel.innerHTML = EQUIP_ORDER.map(function(e){ return '<option value="'+e.replace(/"/g,'&quot;')+'">'+equipLabel(e)+'</option>'; }).join(''); sel.addEventListener('change', fqRender); } })();
+  (function(){ var sel = document.getElementById('fq-truck'); if(sel){ sel.innerHTML = EQUIP_ORDER_DISPATCH.map(function(e){ return '<option value="'+e.replace(/"/g,'&quot;')+'">'+equipLabel(e)+'</option>'; }).join(''); sel.addEventListener('change', fqRender); } })();
   document.getElementById('fqResult').addEventListener('change', function(e){ if(e.target && e.target.id==='fqReturn'){ window.__fqReturn = e.target.checked; fqRender(); } });
   function fqOpen(){ document.getElementById('fqModal').classList.remove('hidden'); document.getElementById('fqMsg').textContent = ''; fqRender(); setTimeout(function(){ document.getElementById('fq-customer').focus(); }, 30); }
   function fqCloseModal(){ document.getElementById('fqModal').classList.add('hidden'); }
