@@ -6429,7 +6429,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       renderTrucksIfOpen();
     }, function(){});
   } else { loadLocalTrucks(); }
-  return { refreshReps: function(){ try{ setupRepPicker(); }catch(e){} }, salesStats: function(a,b){ return salesStats(a,b); }, refreshGoal: function(){ try{ renderGoalStrip(); }catch(e){} }, setConfirmEl: function(el){ confEl = el; confBind(); }, renderConfirm: function(){ try{ renderConfirm(); }catch(e){} }, addLine: function(cells){ if(!canWrite) return; storeCreate(newId(), {cells:cells, status:'Requested', createdBy:myId||'local', repName:myName||'', createdAt:Date.now(), updatedAt:Date.now()}); render(); }, destroy: function(){ try{ subDead = true; clearTimeout(subTimer); }catch(e){} if(typeof unsub==='function') unsub(); unsub = null; if(typeof truckUnsub==='function') truckUnsub(); truckUnsub = null; if(typeof lsUnsub==='function') lsUnsub(); lsUnsub = null; } };
+  return { trucksScroll: function(){ var s = $('summary'), o = s && s.querySelector('.wk-scroll'); return o ? {t:o.scrollTop, l:o.scrollLeft} : null; },
+    redrawTrucks: function(k){ if(view.tab!=='trucks') return; try{ if(trkEditing) trkLiveRender(); else renderTrucks(); }catch(x){} var s = $('summary'), n = s && s.querySelector('.wk-scroll'); if(n && k){ n.scrollTop = k.t; n.scrollLeft = k.l; } },
+    refreshReps: function(){ try{ setupRepPicker(); }catch(e){} }, salesStats: function(a,b){ return salesStats(a,b); }, refreshGoal: function(){ try{ renderGoalStrip(); }catch(e){} }, setConfirmEl: function(el){ confEl = el; confBind(); }, renderConfirm: function(){ try{ renderConfirm(); }catch(e){} }, addLine: function(cells){ if(!canWrite) return; storeCreate(newId(), {cells:cells, status:'Requested', createdBy:myId||'local', repName:myName||'', createdAt:Date.now(), updatedAt:Date.now()}); render(); }, destroy: function(){ try{ subDead = true; clearTimeout(subTimer); }catch(e){} if(typeof unsub==='function') unsub(); unsub = null; if(typeof truckUnsub==='function') truckUnsub(); truckUnsub = null; if(typeof lsUnsub==='function') lsUnsub(); lsUnsub = null; } };
 
   }
 
@@ -9022,6 +9024,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function pxFsIds(mode){ return mode==='wb' ? ['penderSubTabs','pxOverview','pxConfirm','pxWbHost'] : ['viewApp']; }
   function pxFsEnter(){
     var mode = pxFsMode(); if(!mode || PXFS.on) return;
+    var trkKeep = null; try{ if(PX.wb && PX.wb.trucksScroll) trkKeep = PX.wb.trucksScroll(); }catch(x){}
     var box = document.createElement('div'); box.id = 'pxFsBox';
     var bs = getComputedStyle(document.body);
     box.style.cssText = 'position:fixed;inset:0;z-index:45;overflow:auto;padding:10px 12px 56px;box-sizing:border-box;background-color:'+(bs.backgroundColor && bs.backgroundColor!=='rgba(0, 0, 0, 0)' ? bs.backgroundColor : '#23231f')+';background-image:'+bs.backgroundImage+';background-size:cover;background-position:center;';
@@ -9034,11 +9037,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     PXFS.on = true; PXFS.mode = mode; PXFS.box = box;
     document.documentElement.style.overflow = 'hidden';
     pxFsButton();
-    if(mode==='wb') setTimeout(function(){ try{ pxFitWorkbook(); }catch(e){} window.dispatchEvent(new Event('resize')); }, 30);
+    if(mode==='wb') setTimeout(function(){ try{ pxFitWorkbook(); }catch(e){} window.dispatchEvent(new Event('resize')); try{ if(PX.wb && PX.wb.redrawTrucks) PX.wb.redrawTrucks(trkKeep); }catch(x){} }, 30);
   }
   function pxFsExit(){
     if(!PXFS.on) return;
     var wasWb = PXFS.mode==='wb';
+    var trkKeep = null; try{ if(wasWb && PX.wb && PX.wb.trucksScroll) trkKeep = PX.wb.trucksScroll(); }catch(x){}
     Object.keys(PXFS.slots).forEach(function(id){
       var el = document.getElementById(id), c = PXFS.slots[id];
       if(el && c && c.parentNode){ c.parentNode.insertBefore(el, c); c.parentNode.removeChild(c); }
@@ -9047,7 +9051,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     PXFS.on = false; PXFS.mode = null; PXFS.box = null; PXFS.slots = {};
     document.documentElement.style.overflow = '';
     pxFsButton();
-    if(wasWb) setTimeout(function(){ try{ pxFitWorkbook(); }catch(e){} window.dispatchEvent(new Event('resize')); }, 30);
+    if(wasWb) setTimeout(function(){ try{ pxFitWorkbook(); }catch(e){} window.dispatchEvent(new Event('resize')); try{ if(PX.wb && PX.wb.redrawTrucks) PX.wb.redrawTrucks(trkKeep); }catch(x){} }, 30);
   }
   function pxFsButton(){
     if(!PXFS.btn){
