@@ -5537,7 +5537,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       renderConfirm();
     });
   }
+  var wbDead = false;
   function render(){
+    if(wbDead) return;
     try{ renderConfirm(); renderRepAlert(); }catch(e){}
     try{ renderGoalStrip(); }catch(e){}
     if(view.tab==='summary'){ renderSummary(); return; }
@@ -6270,7 +6272,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   var trkEditing = false, trkDirty = false;
   var TRK_EDIT = {su:true, wt:true, value:true};
   function loadLocalTrucks(){ try{ trucks = JSON.parse(localStorage.getItem('px-pender-trucks')||'[]'); }catch(e){ trucks = []; } }
-  function renderTrucksIfOpen(){ try{ renderConfirm(); renderRepAlert(); }catch(e){} try{ renderGoalStrip(); }catch(e){} if(view.tab!=='trucks') return; if(trkEditing){ trkLiveRender(); return; } renderTrucks(); }
+  function renderTrucksIfOpen(){ if(wbDead) return; try{ renderConfirm(); renderRepAlert(); }catch(e){} try{ renderGoalStrip(); }catch(e){} if(view.tab!=='trucks') return; if(trkEditing){ trkLiveRender(); return; } renderTrucks(); }
   var trkRerendering = false;
   function trkLiveRender(){
     var box = $('summary'), root = box && box.getRootNode ? box.getRootNode() : document, act = root && root.activeElement;
@@ -6291,7 +6293,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function trkWeekStart(iso){ var d = iso ? new Date(iso+'T12:00:00') : new Date(); if(isNaN(d)) d = new Date(); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return trkISO(d); }
   function trkMD(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (+m[2])+'/'+(+m[3]) : ''; }
   var TRK_DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
-  function renderTrucks(){ if(view.tab!=='trucks') return; var __b = $('summary'), __o = __b && __b.querySelector('.wk-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(view.truckWeek)} : null; try{ return renderTrucks__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.wk-scroll'); if(__k && __n && __n !== __o && __k.s === (view.truckWeek)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
+  function renderTrucks(){ if(wbDead || view.tab!=='trucks') return; var __b = $('summary'), __o = __b && __b.querySelector('.wk-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(view.truckWeek)} : null; try{ return renderTrucks__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.wk-scroll'); if(__k && __n && __n !== __o && __k.s === (view.truckWeek)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
   function renderTrucks__inner(){
     if(mode==='local') loadLocalTrucks();
     var box = $('summary');
@@ -6436,7 +6438,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   } else { loadLocalTrucks(); }
   return { trucksScroll: function(){ var s = $('summary'), o = s && s.querySelector('.wk-scroll'); return o ? {t:o.scrollTop, l:o.scrollLeft} : null; },
     redrawTrucks: function(k){ if(view.tab!=='trucks') return; try{ if(trkEditing) trkLiveRender(); else renderTrucks(); }catch(x){} var s = $('summary'), n = s && s.querySelector('.wk-scroll'); if(n && k){ n.scrollTop = k.t; n.scrollLeft = k.l; } },
-    refreshReps: function(){ try{ setupRepPicker(); }catch(e){} }, salesStats: function(a,b){ return salesStats(a,b); }, refreshGoal: function(){ try{ renderGoalStrip(); }catch(e){} }, setConfirmEl: function(el){ confEl = el; confBind(); }, renderConfirm: function(){ try{ renderConfirm(); }catch(e){} }, addLine: function(cells){ if(!canWrite) return; storeCreate(newId(), {cells:cells, status:'Requested', createdBy:myId||'local', repName:myName||'', createdAt:Date.now(), updatedAt:Date.now()}); render(); }, destroy: function(){ try{ subDead = true; clearTimeout(subTimer); }catch(e){} if(typeof unsub==='function') unsub(); unsub = null; if(typeof truckUnsub==='function') truckUnsub(); truckUnsub = null; if(typeof lsUnsub==='function') lsUnsub(); lsUnsub = null; } };
+    refreshReps: function(){ try{ setupRepPicker(); }catch(e){} }, salesStats: function(a,b){ return salesStats(a,b); }, refreshGoal: function(){ try{ renderGoalStrip(); }catch(e){} }, setConfirmEl: function(el){ confEl = el; confBind(); }, renderConfirm: function(){ try{ renderConfirm(); }catch(e){} }, addLine: function(cells){ if(!canWrite) return; storeCreate(newId(), {cells:cells, status:'Requested', createdBy:myId||'local', repName:myName||'', createdAt:Date.now(), updatedAt:Date.now()}); render(); }, destroy: function(){ wbDead = true; try{ subDead = true; clearTimeout(subTimer); }catch(e){} if(typeof unsub==='function') unsub(); unsub = null; if(typeof truckUnsub==='function') truckUnsub(); truckUnsub = null; if(typeof lsUnsub==='function') lsUnsub(); lsUnsub = null; } };
 
   }
 
@@ -8171,6 +8173,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var d = docs[id], l = loads.find(function(x){ return String(x.id)===String(id); });
       if(!l || !d || (l.carrierStatusAt||0) >= (d.at||0)) return;
       if(l.status==='canceled') return;
+      if(l.status==='completed' && d.status!=='completed') return;
       if(l.claimedBy && d.by && l.claimedBy!==d.by) return;
       l.carrierStatusAt = d.at;
       var before = JSON.stringify([l.status, l.deliveryStage, l.timing]);
@@ -8709,6 +8712,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         }
         var st = PX.loadStatus && PX.loadStatus[id];
         if(st && me.indexOf(st.by)>-1 && me.indexOf(obj.claimedBy)>-1 && (st.at||0) > (d.updatedAt||0)){
+          if(obj.status==='completed' && st.status!=='completed'){ next.push(obj); return; }
           if(st.status==='completed' || st.status==='claimed') obj.status = st.status;
           obj.deliveryStage = st.deliveryStage || obj.deliveryStage; obj.timing = st.timing || null;
           if(st.vehicleNo) obj.vehicleNo = st.vehicleNo; if(st.driverName){ obj.driverName = st.driverName; obj.driverPhone = st.driverPhone||''; } if(st.equip) obj.equip = st.equip;
