@@ -1261,6 +1261,7 @@
     <p>Confirm as <b id="claimAsName"></b>. Dispatch will see this booking immediately.</p>
     <div class="field" id="claimVehicleField"><label for="claimVehicle">Vehicle / unit number running this load</label><select id="claimVehicle"></select></div>
     <div class="field" id="claimDriverField"><label for="claimDriver">Driver running this load</label><select id="claimDriver"></select></div>
+    <div id="claimMsg" style="color:#F28B82;font-size:13.5px;font-weight:700;min-height:18px;margin:-2px 0 10px;"></div>
     <div class="btn-row">
       <button class="btn ghost" id="claimCancel" style="flex:1;">Cancel</button>
       <button class="btn primary" id="claimConfirm" style="flex:1;">Confirm claim</button>
@@ -4793,6 +4794,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var vs = pxCarrierVehicles(session.name), vsel = document.getElementById('claimVehicle');
     vsel.innerHTML = '<option value="">Pick a vehicle…</option>'+vs.map(function(x){ return '<option>'+pxEsc(x)+'</option>'; }).join('');
     document.getElementById('claimVehicleField').classList.toggle('hidden', !vs.length);
+    if(vs.length===1) vsel.value = vs[0];
+    if(drs.length===1) dsel.value = '0';
+    vsel.style.borderColor = ''; document.getElementById('claimMsg').textContent = '';
     document.getElementById('claimModal').classList.remove('hidden');
   }
   function closeClaimModal(){ pendingClaimId=null; document.getElementById('claimModal').classList.add('hidden'); }
@@ -4857,13 +4861,14 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   document.getElementById('claimConfirm').addEventListener('click', function(){
     var load = loads.find(function(l){return l.id===pendingClaimId;});
     var vsel = document.getElementById('claimVehicle'), needV = !document.getElementById('claimVehicleField').classList.contains('hidden');
-    if(needV && !vsel.value){ vsel.focus(); vsel.style.borderColor = 'var(--danger)'; return; }
+    if(needV && !vsel.value){ vsel.focus(); vsel.style.borderColor = 'var(--danger)'; document.getElementById('claimMsg').textContent = 'Pick the vehicle running this load, then tap Confirm claim.'; return; }
     vsel.style.borderColor = '';
     var dsel = document.getElementById('claimDriver'), needD = !document.getElementById('claimDriverField').classList.contains('hidden');
-    if(needD && dsel.value===''){ dsel.focus(); dsel.style.borderColor = 'var(--danger)'; return; }
+    if(needD && dsel.value===''){ dsel.focus(); dsel.style.borderColor = 'var(--danger)'; document.getElementById('claimMsg').textContent = 'Pick the driver running this load, then tap Confirm claim.'; return; }
+    document.getElementById('claimMsg').textContent = '';
     var dac = pxFindAcct('carrier', session.name), drv = needD ? ((dac && dac.drivers) || [])[+dsel.value] : null;
     if(load){ load.status='claimed'; load.claimedBy=session.name; load.vehicleNo = needV ? vsel.value : ''; load.driverName = drv ? drv.name : ''; load.driverPhone = drv ? drv.phone : ''; load.deliveryStage='claimed';
-      addEvent(load,'Claimed by '+session.name+(load.vehicleNo?' — vehicle '+load.vehicleNo:'')+(load.driverName?' — driver '+load.driverName:'')); persistData(); try{ pxbClaim(load); }catch(e){} }
+      addEvent(load,'Claimed by '+session.name+(load.vehicleNo?' — vehicle '+load.vehicleNo:'')+(load.driverName?' — driver '+load.driverName:'')); persistData(); try{ pxbClaim(load); }catch(e){} try{ if(typeof pxbToast==='function') pxbToast('<div style="font-weight:700;font-size:14.5px;">\u2713 You claimed '+pxEsc(pxLoadNo(load.ref))+'</div><div style="opacity:.9;font-size:12.5px;">It\u2019s in My Claimed Loads.</div>'); }catch(x){} }
     closeClaimModal(); renderAll();
   });
 
