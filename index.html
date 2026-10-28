@@ -6286,7 +6286,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function trkWeekStart(iso){ var d = iso ? new Date(iso+'T12:00:00') : new Date(); if(isNaN(d)) d = new Date(); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return trkISO(d); }
   function trkMD(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (+m[2])+'/'+(+m[3]) : ''; }
   var TRK_DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
-  function renderTrucks(){ var __b = $('summary'), __o = __b && __b.querySelector('.wk-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(view.truckWeek)} : null; try{ return renderTrucks__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.wk-scroll'); if(__k && __n && __n !== __o && __k.s === (view.truckWeek)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
+  function renderTrucks(){ if(view.tab!=='trucks') return; var __b = $('summary'), __o = __b && __b.querySelector('.wk-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(view.truckWeek)} : null; try{ return renderTrucks__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.wk-scroll'); if(__k && __n && __n !== __o && __k.s === (view.truckWeek)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
   function renderTrucks__inner(){
     if(mode==='local') loadLocalTrucks();
     var box = $('summary');
