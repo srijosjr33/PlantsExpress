@@ -283,6 +283,7 @@
   .ov-t{background:var(--panel);border:1.5px solid #E24B4A;border-radius:10px;padding:6px 11px;min-width:92px;}
   .ov-t span{display:block;font-size:10px;color:var(--text-dim);letter-spacing:.04em;} .ov-t b{font-size:14px;}
   .cf-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .cf-t td.cf-addr{white-space:normal;min-width:170px;max-width:240px;line-height:1.35;}.cf-t td.cf-addr span{opacity:.8;}
   .cf-tabs button{border:1.5px solid #E24B4A;border-radius:999px;padding:4px 12px;font-size:11.5px;background:#444441;color:#F1EFE8;cursor:pointer;}
   .cf-tabs button.on{background:#97C459;color:#173404;}
   .cf-day{background:#111;color:#fff;border-radius:6px;padding:8px;text-align:center;font-weight:700;font-size:13.5px;letter-spacing:.06em;margin:12px 0 8px;}
@@ -5514,12 +5515,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       dayTrucks.forEach(function(t){
         var stops = (t.stops && t.stops.length) ? t.stops : (t.orderIds||[]).map(function(id){ return {rowId:id}; });
         html += '<div class="cf-load"><div class="cf-lh"><b>'+esc(t.loadRef)+'</b><span>'+esc(t.carrier||'No carrier yet')+' · '+esc(t.truckNo||t.equip||'')+'</span><span class="cf-when-h">LOAD <b>'+esc(cfDay(t.loadDate || t.date || t.__cday) || '—')+(t.loadTime ? ' · '+esc(trkTime(t.loadTime)) : '')+'</b> → DELIVER <b>'+esc(cfDay(t.date || t.loadDate || t.__cday) || '—')+'</b></span><span class="cf-st">'+esc(t.statusText||'')+'</span><span>'+stops.length+' stop'+(stops.length===1?'':'s')+'</span></div>'+
-          '<div class="cf-scroll"><table class="cf-t"><thead><tr><th>CONFIRMED</th><th>STOP</th><th>COMPANY</th><th>DELIVERY DATE / TIME</th><th>CONTACT</th><th>PHONE · CALL RESULT</th><th>EMAIL</th><th>EMAIL SENT</th></tr></thead><tbody>'+
+          '<div class="cf-scroll"><table class="cf-t"><thead><tr><th>CONFIRMED</th><th>STOP</th><th>COMPANY</th><th>DELIVERY ADDRESS</th><th>DELIVERY DATE / TIME</th><th>CONTACT</th><th>PHONE · CALL RESULT</th><th>EMAIL</th><th>EMAIL SENT</th></tr></thead><tbody>'+
           stops.map(function(sp, i){
             var row = rows.get(sp.rowId), c = (row && row.cells) || {}, cf = (row && row.conf) || {};
             var calls = CALLS(c.contact).map(function(o){ return '<option value="'+o[0]+'"'+((cf.call||'')===o[0]?' selected':'')+'>'+esc(o[1]||'Call result…')+'</option>'; }).join('');
             return '<tr class="'+(cf.confirmed?'ok':'')+'"><td><input type="checkbox" class="cf-conf" data-id="'+esc(sp.rowId)+'"'+(cf.confirmed?' checked':'')+(row?'':' disabled')+'></td>'+
-              '<td>'+(i+1)+'</td><td><b>'+esc(c.customer||'')+'</b>'+(hits[sp.rowId]?' <span class="cf-new">NEW</span>':'')+'</td>'+'<td class="cf-when"><b>'+esc(cfDay(t.date || t.loadDate || t.__cday, true) || '—')+'</b><br><span>ETA '+esc(sp.time ? trkTime(sp.time) : 'To be confirmed')+'</span></td>'+'<td>'+esc(c.contact||'—')+'</td>'+
+              '<td>'+(i+1)+'</td><td><b>'+esc(c.customer||'')+'</b>'+(hits[sp.rowId]?' <span class="cf-new">NEW</span>':'')+'</td>'+(function(){ var st1 = c.address || sp.address || '', cty = c.city || sp.city || '', stt = c.state || sp.state || '', zp = c.zip || sp.zip || ''; var l2 = [cty, [stt, zp].filter(Boolean).join(' ')].filter(Boolean).join(', '); return '<td class="cf-addr">'+(st1 || l2 ? (st1 ? esc(st1) : '')+(st1 && l2 ? '<br>' : '')+(l2 ? '<span>'+esc(l2)+'</span>' : '') : '<span class="cf-dim">No address on this order</span>')+'</td>'; })()+'<td class="cf-when"><b>'+esc(cfDay(t.date || t.loadDate || t.__cday, true) || '—')+'</b><br><span>ETA '+esc(sp.time ? trkTime(sp.time) : 'To be confirmed')+'</span></td>'+'<td>'+esc(c.contact||'—')+'</td>'+
               '<td><span class="cf-ph">'+esc(c.phone||'—')+'</span><select class="cf-call" data-id="'+esc(sp.rowId)+'"'+(row?'':' disabled')+'>'+calls+'</select>'+
                 (cf.call==='SPOKE' ? '<input class="cf-spoke" data-id="'+esc(sp.rowId)+'" value="'+esc(cf.spokeWith!=null ? cf.spokeWith : (c.contact||''))+'" placeholder="Name of person" spellcheck="false">' : '')+'</td>'+
               '<td>'+(c.email ? esc(c.email) : '<span class="cf-dim">No email on this order</span>')+'</td>'+
