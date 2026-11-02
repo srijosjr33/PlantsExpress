@@ -1879,9 +1879,23 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var m = new Map();
       rows.forEach(function(r){ m.set(r.id, r.data); });
       Object.keys(c.pending).forEach(function(id){ if(c.pending[id] > 0){ if(c.docs.has(id)) m.set(id, c.docs.get(id)); else m.delete(id); } });
-      c.docs = m; c.ready = true; emit(c);
+      var first = !c.ready, changed = first || sigOf(m) !== sigOf(c.docs);
+      c.docs = m; c.ready = true;
+      if(changed) emit(c);   // a catch-up that finds nothing new doesn't redraw anything
     });
   }
+  function sigOf(m){ var ids = Array.from(m.keys()).sort(); return JSON.stringify(ids.map(function(id){ return [id, m.get(id)]; })); }
+  /* safety net: if the live connection quietly stops (computer asleep, Wi-Fi change, phone in a pocket),
+     every screen still catches up on its own — when it comes back to the front, and every 30 seconds */
+  var lastCatchUp = 0;
+  function catchUp(force){
+    var now = Date.now(); if(!force && now - lastCatchUp < 5000) return; lastCatchUp = now;
+    Object.keys(cols).forEach(function(k){ var c = cols[k]; if(c.ready && c.listeners.length) fetchCol(c).catch(function(){}); });
+  }
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') catchUp(); });
+  window.addEventListener('focus', function(){ catchUp(); });
+  window.addEventListener('online', function(){ catchUp(true); });
+  setInterval(function(){ if(document.visibilityState === 'visible') catchUp(true); }, 30000);
   function load(c){
     if(!c.loading){
       var tries = 0;
@@ -7987,7 +8001,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function ovRow(l){
     var m = OV.rows[l.id] || {};
     var type = ovIsPlantsExpress(l.claimedBy) ? 'own' : 'carrier';
-    var miles = ovNum(l.miles);
+    var miles = (type==='own' && m.miles!=null && String(m.miles).trim()!=='') ? ovNum(m.miles) : ovNum(l.miles);
     var hours = ovNum(m.hours), inc = ovNum(m.incidentals);
     var salary = type==='carrier' ? 0 : hours * ovNum(OV.settings.hourly);
     var autoExp = type==='carrier' ? (ovNum(l.rate) || (function(){ try{ return carrierFullPay(l).total; }catch(e){ return 0; } })()) : miles * ovNum(OV.settings.cpm);
@@ -8067,7 +8081,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td>'+inp(r,'truckNo', r.m.truckNo!=null && r.m.truckNo!=='' ? r.m.truckNo : (r.l.vehicleNo||''), 'Truck #', 96)+'<br>'+inp(r,'driver', r.m.driver!=null ? r.m.driver : (r.l.driverName||''), 'Driver', 96)+'</td>'+
         '<td style="white-space:normal;min-width:130px;">'+e(r.l.claimedBy||'—')+'<br><span class="ov-tag '+(r.type==='carrier'?'cc':'px')+'">'+(r.type==='carrier'?'Common carrier':'Plants Express')+'</span></td>'+
         '<td class="r">'+r.drops+'</td><td>'+(r.type==='carrier'?'':inp(r,'hours',r.m.hours,'0',50))+'</td><td class="r">'+ovMoney(r.salary)+'</td>'+
-        '<td>'+inp(r,'incidentals',r.m.incidentals,'$0.00',70)+'</td><td class="r">'+r.miles.toLocaleString('en-US')+'</td>'+
+        '<td>'+inp(r,'incidentals',r.m.incidentals,'$0.00',70)+'</td><td'+(r.type==='own' && !ro?'':' class="r"')+'>'+(r.type==='own' && !ro ? inp(r,'miles',r.m.miles,String(ovNum(r.l.miles)),60)+(r.m.miles!=null && String(r.m.miles).trim()!=='' && ovNum(r.m.miles)!==ovNum(r.l.miles) ? '<div style="font-size:10px;color:var(--text-dim);">load: '+ovNum(r.l.miles).toLocaleString('en-US')+'</div>' : '') : r.miles.toLocaleString('en-US'))+'</td>'+
         '<td>'+inp(r,'truckExp',r.m.truckExp,ovMoney(r.autoExp),85)+'</td><td class="r"><b>'+ovMoney(r.cost)+'</b></td>'+
         '<td class="r">'+ovMoney(r.value)+'</td><td class="r">'+ovMoney(r.freight)+'</td><td class="r '+(r.diff<0?'neg':'')+'">'+ovMoney(r.diff)+'</td>'+
         '<td class="r">'+(r.cost>0?Math.round(r.rec)+'%':'')+'</td><td class="r">'+ovMoney(r.rpmCost)+'</td><td class="r">'+ovMoney(r.rpmChg)+'</td><td class="r '+(r.rpmChg-r.rpmCost<0?'neg':'')+'">'+ovMoney(r.rpmChg-r.rpmCost)+'</td></tr>';
