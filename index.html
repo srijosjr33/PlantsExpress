@@ -2343,7 +2343,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     }
     return o('claimed','Claimed')+o('in_process','In process')+o('loading','Loading')+o('in_route','En route')+o('on_site','On site')+o('completed','Completed')+o('cancel','Cancel');
   }
-  function pxLoadNo(ref){ return /^\d{1,2}-\d{4}-\d{2}$/.test(String(ref)) ? String(ref) : 'LD-'+ref; }
+  function pxLoadNo(ref){ return /^(BH-)?\d{1,2}-\d{4}-\d{2}$/.test(String(ref)) ? String(ref) : 'LD-'+ref; }
   function loadStatusLabel(load){
     if(load.status==='claimed'){ var t = timingLabel(load); return DELIVERY_STAGE_LABELS[load.deliveryStage||'claimed'] + (t ? ' · '+t : ''); }
     return statusLabel(load.status);
@@ -8147,13 +8147,14 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     d.setDate(d.getDate() - ((d.getDay()+6)%7) + 4);   // Friday of that Monday-to-Monday week
     return {y:d.getFullYear(), m:d.getMonth()+1};
   }
-  var PX_REF_RE = /^(\d{1,2})-(\d{4})-(\d{2})$/;
+  var PX_REF_RE = /^(\d{1,2})-(\d{4})-(\d{2})$/, PX_BH_RE = /^BH-(\d{1,2})-(\d{4})-(\d{2})$/;
+  function pxBhSeries(l, mo){ return l.direction==='backhaul' && (mo.y > 2026 || (mo.y===2026 && mo.m >= 11)); }   // October and earlier keep their numbers
   function pxAssignPenderRefs(){
     var changed = false, used = {}, need = [];
     loads.forEach(function(l){
       if(!l.isPender) return;
-      var mo = pxLoadMonth(l), key = mo.m+'-'+String(mo.y).slice(-2);
-      var m = String(l.ref).match(PX_REF_RE);
+      var mo = pxLoadMonth(l), bh = pxBhSeries(l, mo), key = (bh?'BH-':'')+mo.m+'-'+String(mo.y).slice(-2);
+      var m = String(l.ref).match(bh ? PX_BH_RE : PX_REF_RE);
       if(m && (+m[1])===mo.m && m[3]===String(mo.y).slice(-2)){
         var seq = +m[2]; used[key] = used[key] || {};
         if(used[key][seq]) need.push(l); else used[key][seq] = true;   // duplicate number in a month gets a fresh one
@@ -8161,12 +8162,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     });
     need.sort(function(a,b){ var x = pxLoadDateISO(a), y = pxLoadDateISO(b); return x<y?-1:x>y?1:((a.createdAt||0)-(b.createdAt||0)); });
     need.forEach(function(l){
-      var mo = pxLoadMonth(l), key = mo.m+'-'+String(mo.y).slice(-2);
+      var mo = pxLoadMonth(l), bh = pxBhSeries(l, mo), key = (bh?'BH-':'')+mo.m+'-'+String(mo.y).slice(-2);
       used[key] = used[key] || {};
       var n = 1; while(used[key][n]) n++;
       used[key][n] = true;
       var old = l.ref;
-      l.ref = mo.m+'-'+('000'+n).slice(-4)+'-'+String(mo.y).slice(-2);
+      l.ref = (bh?'BH-':'')+mo.m+'-'+('000'+n).slice(-4)+'-'+String(mo.y).slice(-2);
       if(old && String(old)!==l.ref){ try{ addEvent(l, 'Load number set to '+l.ref+' (was '+pxLoadNo(old)+')'); }catch(e){} }
       changed = true;
     });
@@ -9346,7 +9347,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   };
   /* ===== Overview: trucks listed in load-number order; a canceled truck stays on its line, zeroed out, and doesn't count ===== */
   function ovSeqKey(r){
-    var m = String(r.l.ref).match(/^(\d{1,2})-(\d{4})-(\d{2})$/);
+    var m = String(r.l.ref).match(/^(?:BH-)?(\d{1,2})-(\d{4})-(\d{2})$/);
     return m ? (+m[2]) : 100000 + (parseInt(r.l.ref,10) || 0);
   }
   var ovsOrigLoads = ovLoads;
