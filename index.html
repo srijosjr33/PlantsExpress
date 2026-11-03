@@ -9701,6 +9701,14 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var hit = false;
     deliveryLogOrders.forEach(function(d){ if(d.status==='pending' && pxOnActiveTruck(d.id)){ d.status = 'patched'; hit = true; } });
     requests.forEach(function(r){ if(r.status==='pending' && pxOnActiveTruck(r.id)){ r.status = 'patched'; hit = true; } });
+    // another computer took it off its truck (or deleted that truck): this computer still had it as 'on a truck'
+    deliveryLogOrders.forEach(function(d){
+      if(d.status!=='patched' || d.source!=='workbook') return;
+      if(loads.some(function(x){ return x.status!=='canceled' && (x.sourceRequestIds||[]).indexOf(d.id)>-1; })) return;
+      var row = (PX.requestRows||[]).find(function(w){ return 'wb_'+w.id===d.id; });
+      if(!row || row.archived || (row.status||'Requested')==='Canceled') return;
+      d.status = 'pending'; hit = true;
+    });
     if(hit){ persistData(); try{ renderAll(); }catch(e){} }
     else { try{ pxLockRows(); }catch(e){} }
   }
