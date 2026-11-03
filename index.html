@@ -4887,9 +4887,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     load.deliveryStage = 'claimed';
     load.pendingChange = null;
     addEvent(load, prevCarrier ? 'Reassigned by '+session.name+' from '+prevCarrier+' to '+newCarrier+(load.driverName?' — driver '+load.driverName:'') : 'Assigned to '+newCarrier+' by '+session.name+(load.driverName?' — driver '+load.driverName:''));
+    if(!load.docToken) load.docToken = pxDocToken();
     persistData();
     closeReassignModal();
     renderAll();
+    try{ pxAssignMail(load); }catch(x){}
   });
   document.getElementById('claimCancel').addEventListener('click', closeClaimModal);
   document.getElementById('claimConfirm').addEventListener('click', function(){
@@ -9894,6 +9896,74 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       '<div style="font-size:12px;margin-top:3px;">'+[bh.contact, bh.phone, bh.email].filter(Boolean).map(pxbkEsc).join(' · ')+'</div>'+
       (bh.address ? '<div style="font-size:12px;">'+pxbkEsc(bh.address)+'</div>' : '')+'</div>';
   }
+  /* ===== Assigning a load: a pre-filled Outlook email to the carrier or broker, with a link to their BOL and rate sheet ===== */
+  function pxDocToken(){ var c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789', s = '', r = new Uint8Array(22); crypto.getRandomValues(r); for(var i=0;i<22;i++) s += c[r[i] % c.length]; return s; }
+  function pxDocLink(load){ return location.origin + location.pathname + '?doc=' + encodeURIComponent(load.docToken); }
+  function pxAssignMail(load){
+    var bh = load.brokerHaul, acct = bh ? null : (pxFindAcct('carrier', load.claimedBy) || null);
+    var to = bh ? (bh.email||'') : ((acct && acct.email) || '');
+    var who = bh ? 'broker' : 'carrier';
+    var picks = (load.stops||[]).filter(function(s){ return s.type==='pickup'; }), dels = (load.stops||[]).filter(function(s){ return s.type==='delivery' && !s.isReturnStop; });
+    var p0 = picks[0] || {};
+    var when = function(s){ return [s.date ? fmtDate(s.date) : '', s.time ? fmtTime(s.time) : ''].filter(Boolean).join(' · '); };
+    var place = function(s){ return [s.company, [s.address, s.city, [s.state, s.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')].filter(Boolean).join(' — '); };
+    var pay = bh ? (parseFloat(bh.rate)||0) : (function(){ try{ return carrierFullPay(load).total; }catch(e){ return 0; } })();
+    var money = function(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); };
+    var no = pxLoadNo(load.ref);
+    var subject = 'DO NOT REPLY – Load '+no+' assigned to '+load.claimedBy+(p0.date ? ' · Pickup '+fmtDate(p0.date) : '');
+    var lines = [];
+    lines.push('Plants Express NC — Load assignment', '');
+    lines.push('Hello '+((bh && bh.contact) || (acct && acct.contact) || load.claimedBy)+',', '');
+    lines.push('Load '+no+' has been assigned to '+load.claimedBy+'.', '');
+    lines.push('PICKUP: '+(when(p0) || 'To be confirmed'));
+    picks.forEach(function(s, i){ lines.push('  Pickup'+(picks.length>1?' '+(i+1):'')+': '+place(s)+(i>0 && when(s) ? ' ('+when(s)+')' : '')); });
+    lines.push('');
+    lines.push('DELIVERIES ('+dels.length+'):');
+    dels.forEach(function(s, i){ lines.push('  '+(i+1)+'. '+place(s)+(when(s) ? ' ('+when(s)+')' : '')); });
+    lines.push('');
+    lines.push('EQUIPMENT: '+(load.equip||''));
+    if(load.driverName) lines.push('DRIVER: '+load.driverName+(load.driverPhone ? ' ('+load.driverPhone+')' : ''));
+    lines.push((bh ? 'FLAT RATE (agreed): ' : 'YOUR PAY: ')+money(pay));
+    lines.push('');
+    lines.push('View & print your BOL and rate sheet:');
+    lines.push(pxDocLink(load));
+    lines.push('');
+    lines.push(bh ? 'The link always shows the latest paperwork for this load. You can forward it to your driver.' : 'The link always shows the latest paperwork for this load. You can also find it under My Claimed Loads on the Plants Express NC load board.');
+    lines.push('', 'Thank you,', 'Plants Express NC Dispatch');
+    var url = 'https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(to)+'&subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(lines.join('\n'));
+    try{ var w = window.open(url, '_blank'); if(!w) window.location.href = url; }catch(e){ window.location.href = url; }
+    if(!to){ try{ pxbToast('<div style="font-weight:700;">No email on file for '+pxEsc(load.claimedBy)+'</div><div style="opacity:.9;font-size:12.5px;">Type it into the email, and add it to their '+who+' profile in Admin so it fills in next time.</div>'); }catch(x){} }
+  }
+  /* ===== The paperwork link: ?doc=… opens just that load's BOL and rate sheet, no sign-in ===== */
+  (function pxDocView(){
+    var tok = null; try{ tok = new URLSearchParams(location.search).get('doc'); }catch(e){}
+    if(!tok) return;
+    document.documentElement.classList.add('px-docview');
+    var st = document.createElement('style');
+    st.textContent = 'html.px-docview #bolCloseBtn{display:none !important;} html.px-docview #pxDocMsg{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:#fff;color:#222;font:600 17px system-ui,sans-serif;text-align:center;padding:24px;} html.px-docview #pxFsBtn{display:none !important;}';
+    document.head.appendChild(st);
+    var msg = document.createElement('div'); msg.id = 'pxDocMsg'; msg.textContent = 'Loading your paperwork…'; document.body.appendChild(msg);
+    var started = Date.now(), shown = false;
+    (function look(){
+      var ready = typeof PXB!=='undefined' && PXB.ready;
+      var hit = null;
+      if(ready){ Object.keys(PXB.docs).some(function(id){ try{ var l = JSON.parse(PXB.docs[id].json); if(l && l.docToken===tok){ hit = l; return true; } }catch(e){} return false; }); }
+      if(hit && (hit.status==='canceled')){ msg.textContent = 'This load is no longer active.'; return; }
+      // give the order details (values, terms, contacts) a moment to arrive so the BOL is complete
+      if(hit && (PX.requestRows || Date.now()-started > 6000)){
+        msg.style.display = 'none';
+        openBOL(hit, {carrier:true}); showBolDoc('rate'); shown = true;
+        // keep it current if dispatch changes the load
+        setInterval(function(){ var d = Object.keys(PXB.docs).map(function(id){ return PXB.docs[id]; }).find(function(x){ try{ return JSON.parse(x.json).docToken===tok; }catch(e){ return false; } });
+          if(!d){ msg.textContent = 'This load is no longer active.'; msg.style.display = ''; return; }
+          var l = JSON.parse(d.json); if(l.status==='canceled'){ msg.textContent = 'This load is no longer active.'; msg.style.display = ''; return; }
+          if(JSON.stringify(l)!==JSON.stringify(bolCurrentLoad)){ var which = document.querySelector('#bolTabs .bol-tab.active'); bolCurrentLoad = l; showBolDoc(which ? which.getAttribute('data-doc') : 'rate'); } }, 5000);
+        return;
+      }
+      if(ready && !hit && Date.now()-started > 12000){ msg.textContent = 'This load is no longer active.'; return; }
+      setTimeout(look, 400);
+    })();
+  })();
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
