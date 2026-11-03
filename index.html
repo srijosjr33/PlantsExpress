@@ -4881,7 +4881,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var prevCarrier = load.claimedBy;
     load.claimedBy = newCarrier;
     if(_bk){ load.brokerHaul = _bk.info; addEvent(load, 'Given to broker '+_bk.name+' at a flat rate of '+pxbkMoney(_bk.info.rate)+' by '+session.name); } else { load.brokerHaul = null; }
-    load.driverName = document.getElementById('reassignDriver').value.trim(); load.driverPhone = document.getElementById('reassignDriverPhone').value.trim();
+    load.driverName = document.getElementById('reassignDriver').value.trim(); load.vehicleNo = pxTnValue(); load.driverPhone = document.getElementById('reassignDriverPhone').value.trim();
     document.getElementById('reassignDriver').value = ''; document.getElementById('reassignDriverPhone').value = '';
     load.status = 'claimed';
     load.deliveryStage = 'claimed';
@@ -9923,6 +9923,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     lines.push('');
     lines.push('EQUIPMENT: '+(load.equip||''));
     if(load.driverName) lines.push('DRIVER: '+load.driverName+(load.driverPhone ? ' ('+load.driverPhone+')' : ''));
+    if(load.vehicleNo) lines.push('TRUCK #: '+load.vehicleNo);
     lines.push((bh ? 'FLAT RATE (agreed): ' : 'YOUR PAY: ')+money(pay));
     lines.push('');
     lines.push('View & print your BOL and rate sheet:');
@@ -9964,6 +9965,36 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       setTimeout(look, 400);
     })();
   })();
+  /* ===== Assign box: pick the truck / vehicle # too (from the carrier's profile, or typed) ===== */
+  (function pxTnMount(){
+    var anchor = document.getElementById('pxBkAssign') || document.getElementById('reassignError'); if(!anchor) return;
+    var f = document.createElement('div'); f.className = 'field'; f.id = 'pxTnField';
+    f.innerHTML = '<label for="pxTnSel">Truck / vehicle # (optional)</label><select id="pxTnSel" class="hidden"></select><input id="pxTnInp" placeholder="e.g. Unit 12">';
+    anchor.parentNode.insertBefore(f, anchor);
+    document.getElementById('pxTnSel').addEventListener('change', function(){
+      var inp = document.getElementById('pxTnInp');
+      if(this.value==='__other'){ this.classList.add('hidden'); inp.classList.remove('hidden'); inp.value = ''; inp.focus(); }
+    });
+  })();
+  function pxTnFill(name){
+    var s = document.getElementById('pxTnSel'), inp = document.getElementById('pxTnInp'); if(!s) return;
+    var vs = name ? pxCarrierVehicles(name) : [];
+    inp.value = '';
+    if(!vs.length){ s.classList.add('hidden'); inp.classList.remove('hidden'); s.innerHTML = ''; return; }
+    var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+    s.innerHTML = '<option value="">— Pick a truck —</option>' + vs.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('') + '<option value="__other">+ Type a different truck</option>';
+    if(vs.length===1) s.value = vs[0];
+    s.classList.remove('hidden'); inp.classList.add('hidden');
+  }
+  function pxTnValue(){
+    var s = document.getElementById('pxTnSel'), inp = document.getElementById('pxTnInp'); if(!s) return '';
+    if(!s.classList.contains('hidden') && s.value && s.value!=='__other') return s.value;
+    return (inp.value||'').trim();
+  }
+  var pxTnOrigDrivers = pxasDrivers;
+  pxasDrivers = function(name){ var out = pxTnOrigDrivers.apply(this, arguments); try{ pxTnFill(name); }catch(e){} return out; };
+  var pxTnOrigOpen = openReassignModal;
+  openReassignModal = function(){ var out = pxTnOrigOpen.apply(this, arguments); try{ pxTnFill(''); }catch(e){} return out; };
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
