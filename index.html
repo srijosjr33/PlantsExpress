@@ -1890,7 +1890,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   var lastCatchUp = 0;
   function catchUp(force){
     var now = Date.now(); if(!force && now - lastCatchUp < 5000) return; lastCatchUp = now;
-    Object.keys(cols).forEach(function(k){ var c = cols[k]; if(c.ready && c.listeners.length) fetchCol(c).catch(function(){}); });
+    Object.keys(cols).forEach(function(k){
+      var c = cols[k]; if(!c.listeners.length) return;
+      if(c.ready) fetchCol(c).catch(function(){});
+      else if(!c.loading) load(c).then(function(){ note(''); }).catch(function(){});   // a first load that failed (Wi-Fi not back yet) gets tried again
+    });
   }
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') catchUp(); });
   window.addEventListener('focus', function(){ catchUp(); });
@@ -3583,6 +3587,42 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var ret = draftStops.find(function(s){ return s.isReturnStop; });
     if(ret){ ret.company = addr.company; ret.address = addr.address; ret.city = addr.city; ret.state = addr.state; ret.zip = addr.zip; }
   }
+  function pxSuTotal(){
+    var el = document.getElementById('pxSuTot'); if(!el) return;
+    var t = 0; draftStops.forEach(function(s){ if(s && !s.isReturnStop && !s.locked) t += Number(s.units)||0; });
+    if(window.__isPenderBuild && window.__loadDirection==='backhaul'){ try{ var bh = bhTotalUnits(); if(bh) t = bh; }catch(e){} }
+    var pct = TRUCK_UNIT_CAPACITY ? t / TRUCK_UNIT_CAPACITY * 100 : 0;
+    el.textContent = Math.round(t).toLocaleString('en-US');
+    var p = document.getElementById('pxSuPct'); if(p){ p.innerHTML = Math.round(t)>0 ? '<b style="color:'+(pct>100?'var(--danger)':'var(--accent)')+';">'+pct.toFixed(1)+'% of a truck</b> (truck holds '+TRUCK_UNIT_CAPACITY.toLocaleString('en-US')+')'+(pct>100?' — over capacity':'') : ''; }
+  }
+  function pxPcApplyNow(load, why){
+    var pc = load && load.pendingChange; if(!pc) return;
+    Object.assign(load, pc.fields || {});
+    if(pc.oldEquip!==undefined && pc.oldEquip!==load.equip){ load.equipAlert = {from:pc.oldEquip, to:load.equip, at:now(), ackBy:[]}; }
+    load.pendingChange = null;
+    try{ addEvent(load, 'Proposed changes ('+(pc.changesSummary||[]).join(', ')+') applied — '+why+' before answering'); }catch(e){}
+  }
+  // an order still listed on a load but on none of its stops (and no change waiting) goes back to PENDER Orders
+  function pxOrphanHeal(){
+    var hit = false;
+    loads.forEach(function(l){
+      if((l.status!=='available' && l.status!=='claimed') || l.pendingChange) return;
+      var st = l.stops||[];
+      if(!st.some(function(s){ return s.orderId && String(s.orderId).indexOf('wb_')===0; })) return;
+      var onStops = st.filter(function(s){ return s.orderId && String(s.orderId).indexOf('wb_')===0; }).map(function(s){ return s.orderId; });
+      var missing = onStops.filter(function(oid, i){ return onStops.indexOf(oid)===i && (l.sourceRequestIds||[]).indexOf(oid)<0; });
+      if(missing.length){ l.sourceRequestIds = (l.sourceRequestIds||[]).concat(missing); missing.forEach(function(oid){ var dd = deliveryLogOrders.find(function(x){ return x.id===oid; }); if(dd && dd.status==='pending') dd.status = 'patched'; }); hit = true; }
+      var gone = (l.sourceRequestIds||[]).filter(function(oid){ return String(oid).indexOf('wb_')===0 && !st.some(function(s){ return s.orderId===oid; }); });
+      if(!gone.length) return;
+      l.sourceRequestIds = (l.sourceRequestIds||[]).filter(function(oid){ return gone.indexOf(oid)<0; });
+      gone.forEach(function(oid){
+        var dd = deliveryLogOrders.find(function(x){ return x.id===oid; }); if(dd && dd.status==='patched') dd.status = 'pending';
+        try{ addEvent(l, 'Order'+(dd && pxqValue(dd,'orderNo') ? ' #'+pxqValue(dd,'orderNo') : '')+(dd && dd.shipperName ? ' ('+dd.shipperName+')' : '')+' wasn’t on any stop — put back on PENDER Orders'); }catch(e){}
+      });
+      hit = true;
+    });
+    return hit;
+  }
   function renderStopBuilder(){
     try{ renderPenderAddReq(); }catch(e){}
     document.getElementById('penderDriverField').classList.add('hidden');
@@ -3643,7 +3683,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     }).join('');
     wrap.innerHTML = '<div class="sheet-wrap"><table class="sheet-table"><thead><tr>'+
       '<th>#</th><th>Type</th><th>Company</th><th>Address</th><th>City</th><th>ST</th><th>Zip</th><th>Units</th><th>Date</th><th>Time</th><th>Notes</th><th></th>'+
-      '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+      '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
+      '<div class="px-su-tot" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;padding:9px 12px;border:1.5px solid var(--accent);border-radius:10px;background:var(--panel-2);"><span style="font-weight:700;letter-spacing:.03em;">TOTAL SHIPPING UNITS</span><span><b class="mono" id="pxSuTot" style="font-size:15px;"></b> <span id="pxSuPct" style="font-size:12px;color:var(--text-dim);margin-left:8px;"></span></span></div>';
+    pxSuTotal(); if(!wrap.__suBound){ wrap.__suBound = true; wrap.addEventListener('input', function(){ setTimeout(pxSuTotal, 0); }); wrap.addEventListener('change', function(){ setTimeout(pxSuTotal, 0); }); }
     function stopMovable(k){ var st = draftStops[k]; return !!st && !st.locked && !st.isReturnStop; }
     function moveStop(from, to){
       if(from===to || !stopMovable(from) || !stopMovable(to)) return;
@@ -4467,7 +4509,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         askConfirm('Remove '+(prevCarrier||'this carrier')+' from '+pxLoadNo(load.ref)+' and reopen it for other carriers to claim?', function(){
           load.status = 'available';
           load.claimedBy = null;
-          load.pendingChange = null;
+          pxPcApplyNow(load, prevCarrier+' was removed');
           addEvent(load, prevCarrier+' removed by '+session.name+' — reopened for other carriers');
           persistData();
           renderAll();
@@ -4883,6 +4925,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(_bk){ load.brokerHaul = _bk.info; addEvent(load, 'Given to broker '+_bk.name+' at a flat rate of '+pxbkMoney(_bk.info.rate)+' by '+session.name); } else { load.brokerHaul = null; }
     load.driverName = document.getElementById('reassignDriver').value.trim(); load.vehicleNo = pxTnValue(); load.driverPhone = document.getElementById('reassignDriverPhone').value.trim();
     document.getElementById('reassignDriver').value = ''; document.getElementById('reassignDriverPhone').value = '';
+    pxPcApplyNow(load, (prevCarrier||'the carrier')+' was replaced');
     load.status = 'claimed';
     load.deliveryStage = 'claimed';
     load.pendingChange = null;
@@ -5347,8 +5390,16 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(mode==='db'){ queueWrite(id, function(){ return dbCol.doc(id).set(data); }); }
     else localSave();
   }
+  function pxTruckOf(id){ return (trucks||[]).find(function(t){ return t.status!=='canceled' && ((t.orderIds||[]).indexOf(id)>-1 || (t.stops||[]).some(function(s){ return s.rowId===id; })); }) || null; }
+  function pxTruckBlock(id, what){
+    var tk = pxTruckOf(id); if(!tk) return false;
+    var row = rows.get(id) || {}, c = row.cells || {};
+    confirmBox('Order '+(c.orderNo ? '#'+c.orderNo+' ' : '')+(c.customer ? '('+c.customer+') ' : '')+'is on truck '+(tk.loadRef||'')+'. It can\u2019t be '+what+' here \u2014 ask dispatch to take it off the truck first.', function(){}, 'OK', 'Close');
+    return true;
+  }
   function storeUpdate(id, patch){
     var old = rows.get(id); if(!old) return;
+    if(patch && patch.status==='Canceled' && old.status!=='Canceled' && pxTruckBlock(id, 'canceled')) return;
     try{ if(patch && patch.cells && ('notes' in patch.cells) && old.onTruck && String((old.cells||{}).notes||'').trim()!==String(patch.cells.notes||'').trim() && window.__pxNotesChanged){
       var tk = (trucks||[]).find(function(t){ return t.status!=='canceled' && (t.orderIds||[]).indexOf(id)>-1; });
       window.__pxNotesChanged({rowId:id, customer:(old.cells||{}).customer||'', orderNo:(old.cells||{}).orderNo||'', loadRef: tk ? tk.loadRef : '', from:(old.cells||{}).notes||'', to:patch.cells.notes||'', by: myName||''}); } }catch(x){}
@@ -5362,6 +5413,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     else localSave();
   }
   function storeDelete(id){
+    if(rows.get(id) && pxTruckBlock(id, 'deleted')) return;
     try{ var od = rows.get(id); if(od){ var dd = JSON.parse(JSON.stringify(od)); delete dd.id; undoRecord({t:'d', id:id, data:dd}); } }catch(e){}
     rows.delete(id);
     if(mode==='db'){ queueWrite(id, function(){ return dbCol.doc(id).delete(); }); }
@@ -5631,7 +5683,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(row){
         if(row.status==='Canceled') act = canWrite ? '<button type="button" class="undo" data-undo="'+row.id+'">Undo cancel</button>' : '';
         else if(row.truckLocked) act = '<span class="ontruck" title="The truck is loading. Call dispatch to make changes.">🔒 Loading</span>';
-        else if(row.onTruck) act = '<span class="ontruck" title="Dispatch already put this order on a truck. Call dispatch to cancel it.">On a truck</span>';
+        else if(row.onTruck || pxTruckOf(row.id)) act = '<span class="ontruck" title="Dispatch already put this order on a truck. Call dispatch to cancel it.">On a truck</span>';
         else if(canWrite) act = '<button type="button" data-cancel="'+row.id+'">Cancel order</button>';
       }
       var trCls = !row ? 'blank' : (row.status==='Canceled' ? 'canceled' : '');
@@ -5816,6 +5868,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var cb = e.target.closest('button[data-cancel]'), ub = e.target.closest('button[data-undo]');
     if(cb){
       var row = rows.get(cb.getAttribute('data-cancel')); if(!row) return;
+      if(pxTruckBlock(row.id, 'canceled')) return;
       var what = (row.cells&&row.cells.orderNo ? 'order '+row.cells.orderNo : 'this order') + (row.cells&&row.cells.customer ? ' for '+row.cells.customer : '');
       confirmBox('Cancel '+what+'? It will be removed from the sheet, and dispatch will no longer see it.', function(){
         storeUpdate(row.id, {status:'Canceled', canceledAt:Date.now(), updatedAt:Date.now()}); render();
@@ -9700,7 +9753,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   /* ===== once the shared trucks arrive, orders on them are marked on a truck on this computer too (fixes a new or cleared computer) ===== */
   function pxOnTruckHeal(){
     if(!session || session.role!=='dispatcher' || !pxTrucksKnown()) return;
-    var hit = false;
+    var hit = pxOrphanHeal();
     deliveryLogOrders.forEach(function(d){ if(d.status==='pending' && pxOnActiveTruck(d.id)){ d.status = 'patched'; hit = true; } });
     requests.forEach(function(r){ if(r.status==='pending' && pxOnActiveTruck(r.id)){ r.status = 'patched'; hit = true; } });
     // another computer took it off its truck (or deleted that truck): this computer still had it as 'on a truck'
@@ -9995,6 +10048,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   pxasDrivers = function(name){ var out = pxTnOrigDrivers.apply(this, arguments); try{ pxTnFill(name); }catch(e){} return out; };
   var pxTnOrigOpen = openReassignModal;
   openReassignModal = function(){ var out = pxTnOrigOpen.apply(this, arguments); try{ pxTnFill(''); }catch(e){} return out; };
+  /* ===== Dispatcher: anything not yet on the shared board gets sent again on its own (no page refresh needed) ===== */
+  setInterval(function(){ try{ if(pxbRole()==='dispatcher' && document.visibilityState==='visible') pxbPush(); }catch(e){} }, 20000);
+  document.addEventListener('visibilitychange', function(){ try{ if(document.visibilityState==='visible' && pxbRole()==='dispatcher') setTimeout(pxbPush, 1500); }catch(e){} });
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
