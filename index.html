@@ -3986,7 +3986,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           perStop:newPerStop, fuelMpg: fuelIndex.mpg || 6
         };
 
-        if(editLoad.status==='claimed' && changes.length){
+        var pxMail = (editLoad.status==='claimed' && changes.length) ? {updated:true, details:pxChangeDetails(editLoad, newFields), waiting:!editLoad.brokerHaul} : null;
+        if(editLoad.status==='claimed' && changes.length && !editLoad.brokerHaul){
           editLoad.pendingChange = {fields:newFields, oldEquip:oldEquip, changesSummary:changes, proposedAt: now(), proposedBy: session.name};
           addEvent(editLoad, 'Dispatcher '+session.name+' proposed changes ('+changes.join(', ')+') — awaiting confirmation from '+editLoad.claimedBy);
           persistData();
@@ -4001,6 +4002,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       window.__editingLoadId = null;
       exitEditMode();
       renderAll();
+      if(editLoad && pxMail){ try{ if(!editLoad.docToken){ editLoad.docToken = pxDocToken(); persistData(); } pxAssignMail(pxMail.waiting ? Object.assign({}, editLoad, (editLoad.pendingChange||{}).fields||{}) : editLoad, pxMail); }catch(x){} }
       if(wasPenderEdit){ document.querySelector('#roleDispatcher .navtabs button[data-tab="penderdeliveries"]').click(); }
       return;
     }
@@ -4230,6 +4232,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(locked) acts.push(['unlock-load-btn','Unlock for editing']);
     if(load.status!=='canceled' && load.editUnlocked) acts.push(['relock-load-btn','Lock again']);
     if(load.status==='claimed') acts.push(['reassign-btn','Reassign carrier']);
+    if(load.status==='claimed') acts.push(['pxresend', 'Resend email to '+(load.brokerHaul ? 'broker' : 'carrier')]);
     if(load.status==='claimed') acts.push(['unclaim-btn','Unclaim (reopen for carriers)']);
     if(load.status==='available'||load.status==='claimed'){
       if(load.cancelProposal) acts.push(['withdraw-cancel-proposal-btn','Withdraw cancellation request']);
@@ -4255,6 +4258,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           var st = v.slice(3); if(st==='none') return;
           var target = wrap.querySelector('.stage-select[data-id="'+id+'"]') || wrap.querySelector('.pre-stage-select[data-id="'+id+'"]');
           if(target){ target.value = st; target.dispatchEvent(new Event('change', {bubbles:true})); }
+        } else if(v==='act:pxresend'){
+          var rl = loads.find(function(x){ return String(x.id)===String(id); });
+          if(rl){ if(!rl.docToken){ rl.docToken = pxDocToken(); persistData(); } pxAssignMail(rl, {resend:true}); }
         } else if(v.indexOf('act:')===0){
           var b = wrap.querySelector('.'+v.slice(4)+'[data-id="'+id+'"]');
           if(b) b.click();
@@ -9952,7 +9958,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   /* ===== Assigning a load: a pre-filled Outlook email to the carrier or broker, with a link to their BOL and rate sheet ===== */
   function pxDocToken(){ var c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789', s = '', r = new Uint8Array(22); crypto.getRandomValues(r); for(var i=0;i<22;i++) s += c[r[i] % c.length]; return s; }
   function pxDocLink(load){ return location.origin + location.pathname + '?doc=' + encodeURIComponent(load.docToken); }
-  function pxAssignMail(load){
+  function pxAssignMail(load, opts){
+    opts = opts || {};
     var bh = load.brokerHaul, acct = bh ? null : (pxFindAcct('carrier', load.claimedBy) || null);
     var to = bh ? (bh.email||'') : ((acct && acct.email) || '');
     var who = bh ? 'broker' : 'carrier';
@@ -9963,11 +9970,16 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var pay = bh ? (parseFloat(bh.rate)||0) : (function(){ try{ return carrierFullPay(load).total; }catch(e){ return 0; } })();
     var money = function(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); };
     var no = pxLoadNo(load.ref);
-    var subject = 'DO NOT REPLY – Load '+no+' assigned to '+load.claimedBy+(p0.date ? ' · Pickup '+fmtDate(p0.date) : '');
+    var subject = 'DO NOT REPLY – '+(opts.updated ? 'UPDATED Load '+no : (opts.resend ? 'Load '+no+' details' : 'Load '+no+' assigned to '+load.claimedBy))+(p0.date ? ' · Pickup '+fmtDate(p0.date) : '');
     var lines = [];
-    lines.push('Plants Express NC — Load assignment', '');
+    lines.push('Plants Express NC — '+(opts.updated ? 'Load update' : 'Load assignment'), '');
     lines.push('Hello '+((bh && bh.contact) || (acct && acct.contact) || load.claimedBy)+',', '');
-    lines.push('Load '+no+' has been assigned to '+load.claimedBy+'.', '');
+    if(opts.updated){
+      lines.push('Load '+no+' has been UPDATED.', '');
+      lines.push('WHAT CHANGED:'); (opts.details||[]).forEach(function(d){ lines.push('  • '+d); }); lines.push('');
+      if(opts.waiting) lines.push('These changes are waiting for your OK — please accept them under My Claimed Loads on the Plants Express NC load board. Your paperwork link will show them once you accept.', '');
+      lines.push('Here are the full, current details:', '');
+    } else lines.push('Load '+no+' has been assigned to '+load.claimedBy+'.', '');
     lines.push('PICKUP: '+(when(p0) || 'To be confirmed'));
     picks.forEach(function(s, i){ lines.push('  Pickup'+(picks.length>1?' '+(i+1):'')+': '+place(s)+(i>0 && when(s) ? ' ('+when(s)+')' : '')); });
     lines.push('');
@@ -10051,6 +10063,29 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   /* ===== Dispatcher: anything not yet on the shared board gets sent again on its own (no page refresh needed) ===== */
   setInterval(function(){ try{ if(pxbRole()==='dispatcher' && document.visibilityState==='visible') pxbPush(); }catch(e){} }, 20000);
   document.addEventListener('visibilitychange', function(){ try{ if(document.visibilityState==='visible' && pxbRole()==='dispatcher') setTimeout(pxbPush, 1500); }catch(e){} });
+  /* ===== Changes to an assigned load: list what changed for the carrier / broker email ===== */
+  function pxChangeDetails(oldL, nf){
+    var out = [], key = function(s){ return s.orderId || [s.type, s.company, s.city].join('|'); };
+    var name = function(s){ return (s.company||'Stop')+(s.city ? ' ('+s.city+(s.state?', '+s.state:'')+')' : ''); };
+    var os = (oldL.stops||[]).filter(function(s){ return !s.isReturnStop; }), ns = (nf.stops||[]).filter(function(s){ return !s.isReturnStop; });
+    ns.forEach(function(s){ if(!os.some(function(o){ return key(o)===key(s); })) out.push('Added '+(s.type==='pickup'?'pickup':'stop')+': '+name(s)); });
+    os.forEach(function(s){ if(!ns.some(function(n){ return key(n)===key(s); })) out.push('Removed '+(s.type==='pickup'?'pickup':'stop')+': '+name(s)); });
+    ns.forEach(function(s){ var o = os.find(function(x){ return key(x)===key(s); }); if(!o) return;
+      var w0 = [o.date?fmtDate(o.date):'', o.time?fmtTime(o.time):''].filter(Boolean).join(' '), w1 = [s.date?fmtDate(s.date):'', s.time?fmtTime(s.time):''].filter(Boolean).join(' ');
+      if(w0!==w1) out.push(name(s)+': '+(w0||'no time')+' → '+(w1||'no time'));
+      if((o.address||'')!==(s.address||'')) out.push(name(s)+': address changed to '+(s.address||''));
+    });
+    var oi = os.map(key).filter(function(k){ return ns.some(function(n){ return key(n)===k; }); }), ni = ns.map(key).filter(function(k){ return os.some(function(o){ return key(o)===k; }); });
+    if(JSON.stringify(oi)!==JSON.stringify(ni)) out.push('Stop order changed');
+    if(nf.equip!==undefined && nf.equip!==oldL.equip) out.push('Equipment: '+oldL.equip+' → '+nf.equip);
+    if(String(nf.miles||'')!==String(oldL.miles||'')) out.push('Trip miles: '+(oldL.miles||0)+' → '+(nf.miles||0));
+    if(!oldL.brokerHaul){
+      var m = function(n){ return '$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); };
+      var p0 = 0, p1 = 0; try{ p0 = carrierFullPay(oldL).total; p1 = carrierFullPay(Object.assign({}, oldL, nf)).total; }catch(e){}
+      if(Math.abs(p0-p1) > 0.005) out.push('Your pay: '+m(p0)+' → '+m(p1));
+    }
+    return out.length ? out : ['Load details updated'];
+  }
   /* --- connect to the shared data --- */
   function pxStartLocal(){
     PX.reps = pxLocalReps(); pxRepsChanged();
