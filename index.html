@@ -1895,7 +1895,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(!names.length) return;
     polling = true;
     clientP.then(function(sb){
-      return sb.from(TABLE).select('col,id,data,updated_at').in('col', names).gte('updated_at', lastAt).order('updated_at').limit(500);
+      var since = new Date(Date.parse(lastAt) - 120000).toISOString();
+      return sb.from(TABLE).select('col,id,data,updated_at').in('col', names).gte('updated_at', since).order('updated_at').limit(500);
     }).then(function(r){
       polling = false;
       if(!r || r.error) return;
@@ -2013,6 +2014,13 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         return track(c, id, clientP.then(function(sb){
           return sb.from(TABLE).upsert({col:c.name, id:id, data:v, updated_at:new Date().toISOString()});
         }).then(function(r){ if(r.error) throw wrapErr(r.error); }, function(e){ throw wrapErr(e); }));
+      },
+      casSet: function(data, expectAt){
+        var v = clone(data);
+        c.docs.set(id, v); emit(c);
+        return track(c, id, clientP.then(function(sb){
+          return sb.from(TABLE).update({data:v, updated_at:new Date().toISOString()}).eq('col', c.name).eq('id', id).eq('data->>updatedAt', String(expectAt)).select('id');
+        }).then(function(r){ if(r.error) throw wrapErr(r.error); return !!(r.data && r.data.length); }, function(e){ throw wrapErr(e); }));
       },
       update: function(patch){
         var p = clone(patch);
@@ -8749,7 +8757,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     carrierDirectory = carrierDirectory.filter(function(m){ return demoNames.indexOf(m.name)<0; });
     if(loads.length + requests.length + shipperDirectory.length + carrierDirectory.length !== n0){ try{ persistData(); }catch(e){} }
   })();
-  function pxbKey(l){ var c = {}; Object.keys(l).forEach(function(k){ if(k!=='__boardAt') c[k] = l[k]; }); return JSON.stringify(c); }
+  function pxbKey(l){ var c = {}; Object.keys(l).forEach(function(k){ if(k!=='__boardAt' && k!=='__baseAt') c[k] = l[k]; }); return JSON.stringify(c); }
   function pxbRole(){ return session && session.role; }
   function pxbMe(){ try{ return pxMyNames('carrier'); }catch(e){ return session ? [session.name] : []; } }
 
@@ -8780,8 +8788,18 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(l.status==='available' && PXB.claims[id]){ PXB.dropped[id] = PXB.claims[id].at || 1; l.__unclaimedAt = Date.now(); delete PXB.claims[id]; PX.db.collection('claims').doc(id).delete().catch(function(){}); }
       var key = pxbKey(l);
       if(PXB.sent[id]===key) return;
-      PXB.sent[id] = key; l.__boardAt = Date.now();
-      col.doc(id).set({json:key, ref:l.ref, status:l.status||'', updatedAt:l.__boardAt, by:session.name}).catch(function(){ delete PXB.sent[id]; });
+      if(PXB.inflight && PXB.inflight[id]){ PXB.again = PXB.again || {}; PXB.again[id] = true; return; }
+      PXB.inflight = PXB.inflight || {};
+      var at = Date.now(), d0 = PXB.docs[id], payload = {json:key, ref:l.ref, status:l.status||'', updatedAt:at, by:session.name};
+      PXB.sent[id] = key; l.__boardAt = at; PXB.inflight[id] = true;
+      var pr = d0 ? col.doc(id).casSet(payload, (l.__baseAt!=null && l.__baseAt>0) ? l.__baseAt : d0.updatedAt) : col.doc(id).set(payload).then(function(){ return true; });
+      pr.then(function(ok){
+        delete PXB.inflight[id];
+        var cur = loads.find(function(x){ return String(x.id)===id; });
+        if(ok){ if(cur && pxbKey(cur)===key) cur.__baseAt = at; }
+        else { delete PXB.sent[id]; if(cur){ cur.__baseAt = -1; cur.__boardAt = 0; } }   // someone changed it first: take theirs
+        if(PXB.again && PXB.again[id]){ delete PXB.again[id]; setTimeout(function(){ try{ pxbPush(); }catch(e){} }, 60); }
+      }, function(){ delete PXB.inflight[id]; delete PXB.sent[id]; });
       PXB.known[id] = true;
     });
     Object.keys(PXB.known).forEach(function(id){
@@ -8810,11 +8828,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       Object.keys(PXB.docs).forEach(function(id){
         var d = PXB.docs[id];
         if(PXB.dead[id]) return;
-        if(PXB.sent[id]===d.json){ PXB.known[id] = true; return; }
         var i = byId[id], local = i!=null ? loads[i] : null;
-        if(local && (local.__boardAt||0) > (d.updatedAt||0)) return;
+        if(PXB.sent[id]===d.json){ PXB.known[id] = true; if(local) local.__baseAt = d.updatedAt||0; return; }
+        if(local && PXB.inflight && PXB.inflight[id]) return;   // our own save is on its way
+        if(local && local.__baseAt!=null && local.__baseAt>0 && local.__baseAt===(d.updatedAt||0) && PXB.sent[id]!==pxbKey(local)) return;   // our unsent change sits on top of the board's current version
         var obj; try{ obj = JSON.parse(d.json); }catch(e){ return; }
-        obj.__boardAt = d.updatedAt||0;
+        obj.__boardAt = d.updatedAt||0; obj.__baseAt = d.updatedAt||0;
         if(i!=null) loads[i] = obj; else loads.push(obj);
         PXB.sent[id] = d.json; PXB.known[id] = true; changed = true;
       });
