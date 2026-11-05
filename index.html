@@ -1867,7 +1867,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     return clientP.then(function(sb){
       var all = [], from = 0, PAGE = 1000;
       function page(){
-        return sb.from(TABLE).select('id,data').eq('col', c.name).order('id').range(from, from + PAGE - 1).then(function(r){
+        return sb.from(TABLE).select('id,data,updated_at').eq('col', c.name).order('id').range(from, from + PAGE - 1).then(function(r){
           if(r.error) throw r.error;
           all = all.concat(r.data || []);
           if((r.data || []).length === PAGE){ from += PAGE; return page(); }
@@ -1877,13 +1877,39 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       return page();
     }).then(function(rows){
       var m = new Map();
-      rows.forEach(function(r){ m.set(r.id, r.data); });
+      rows.forEach(function(r){ m.set(r.id, r.data); if(r.updated_at && (!lastAt || r.updated_at > lastAt)) lastAt = r.updated_at; });
       Object.keys(c.pending).forEach(function(id){ if(c.pending[id] > 0){ if(c.docs.has(id)) m.set(id, c.docs.get(id)); else m.delete(id); } });
       var first = !c.ready, changed = first || sigOf(m) !== sigOf(c.docs);
       c.docs = m; c.ready = true;
       if(changed) emit(c);   // a catch-up that finds nothing new doesn't redraw anything
     });
   }
+  /* quick check every few seconds: pick up anything saved since we last looked (works even where the live
+     connection is blocked or asleep) — so every screen stays within seconds of everyone else, like a shared sheet */
+  var lastAt = null, polling = false;
+  function quickCheck(){
+    if(polling || !lastAt) return;
+    var names = Object.keys(cols).filter(function(k){ return cols[k].ready && cols[k].listeners.length; });
+    if(!names.length) return;
+    polling = true;
+    clientP.then(function(sb){
+      return sb.from(TABLE).select('col,id,data,updated_at').in('col', names).gte('updated_at', lastAt).order('updated_at').limit(500);
+    }).then(function(r){
+      polling = false;
+      if(!r || r.error) return;
+      var touched = {};
+      (r.data || []).forEach(function(row){
+        if(row.updated_at > lastAt) lastAt = row.updated_at;
+        var c = cols[row.col]; if(!c || !c.ready || c.pending[row.id] > 0) return;
+        var cur = c.docs.get(row.id);
+        if(cur !== undefined && JSON.stringify(cur) === JSON.stringify(row.data)) return;
+        c.docs.set(row.id, row.data); touched[row.col] = c;
+      });
+      Object.keys(touched).forEach(function(k){ emit(touched[k]); });
+    }, function(){ polling = false; });
+  }
+  setInterval(function(){ if(document.visibilityState === 'visible') quickCheck(); }, 3000);
+  setInterval(function(){ if(document.visibilityState !== 'visible') quickCheck(); }, 15000);
   function sigOf(m){ var ids = Array.from(m.keys()).sort(); return JSON.stringify(ids.map(function(id){ return [id, m.get(id)]; })); }
   /* safety net: if the live connection quietly stops (computer asleep, Wi-Fi change, phone in a pocket),
      every screen still catches up on its own — when it comes back to the front, and every 30 seconds */
