@@ -5451,9 +5451,14 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function storeUpdate(id, patch){
     var old = rows.get(id); if(!old) return;
     if(patch && patch.status==='Canceled' && old.status!=='Canceled' && pxTruckBlock(id, 'canceled')) return;
-    try{ if(patch && patch.cells && ('notes' in patch.cells) && old.onTruck && String((old.cells||{}).notes||'').trim()!==String(patch.cells.notes||'').trim() && window.__pxNotesChanged){
-      var tk = (trucks||[]).find(function(t){ return t.status!=='canceled' && (t.orderIds||[]).indexOf(id)>-1; });
-      window.__pxNotesChanged({rowId:id, customer:(old.cells||{}).customer||'', orderNo:(old.cells||{}).orderNo||'', loadRef: tk ? tk.loadRef : '', from:(old.cells||{}).notes||'', to:patch.cells.notes||'', by: myName||''}); } }catch(x){}
+    try{ if(patch && patch.cells && window.__pxNotesChanged && !old.archived && old.status!=='Canceled'){
+      ['notes','inhouse'].forEach(function(k){
+        if(!(k in patch.cells)) return;
+        var was = String((old.cells||{})[k]||'').trim(), now = String(patch.cells[k]||'').trim(); if(was===now) return;
+        var tk = (trucks||[]).find(function(t){ return t.status!=='canceled' && t.status!=='completed' && (t.orderIds||[]).indexOf(id)>-1; });
+        if(!tk && old.onTruck && k==='notes') tk = (trucks||[]).find(function(t){ return t.status!=='canceled' && (t.orderIds||[]).indexOf(id)>-1; });
+        window.__pxNotesChanged({rowId:id, field:k, onTruck: !!(tk || old.onTruck), customer:(old.cells||{}).customer||'', orderNo:(old.cells||{}).orderNo||'', loadRef: tk ? tk.loadRef : '', from:was, to:now, by: myName||''});
+      }); } }catch(x){}
     patch = fzPatch(old, patch);
     if(patch.cells || patch.fmt || ('status' in patch)){ try{ undoRecord({t:'u', id:id, inv:undoInverse(old, patch), fwd:JSON.parse(JSON.stringify(patch))}); }catch(e){} }
     var next = Object.assign({}, old, patch);
@@ -10157,14 +10162,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function pxnaRender(){
     var box = document.getElementById('pxNotesAlert'); if(!box) return;
     var open = PXNA.list.filter(function(x){ return !x.seen; }).sort(function(a,b){ return (b.at||0)-(a.at||0); });
+    var bolN = open.filter(function(x){ return (x.field||'notes')==='notes' && (x.onTruck!==false) && x.loadRef; }).length;
     if(!open.length || !(session && session.role==='dispatcher')){ box.classList.add('hidden'); box.innerHTML = ''; return; }
     var e = pxEsc, when = function(t){ return new Date(t).toLocaleString('en-US',{weekday:'short',month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'}); };
     box.innerHTML = '<div style="border:2px solid #EF9F27;background:rgba(239,159,39,.14);border-radius:10px;padding:10px 14px;">'+
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><b style="font-size:14.5px;">⚠️ Drivers notes changed on '+open.length+' order'+(open.length===1?'':'s')+' already on a truck — reprint the BOL</b>'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><b style="font-size:14.5px;">📝 Notes changed on '+open.length+' order'+(open.length===1?'':'s')+(bolN ? ' — reprint the BOL for '+bolN+' on a truck' : '')+'</b>'+
       '<button type="button" class="btn ghost small" data-na="all" style="margin-left:auto;">Got it — all</button></div>'+
       open.map(function(x){
         return '<div style="display:flex;gap:10px;align-items:flex-start;border-top:1px solid rgba(239,159,39,.35);padding:6px 0;font-size:12.5px;">'+
-          '<div style="flex:1;"><b>'+e(x.loadRef || 'Truck')+'</b> · '+e(x.customer)+(x.orderNo?' #'+e(x.orderNo):'')+'<br>'+
+          '<div style="flex:1;">'+(x.loadRef ? '<b>'+e(x.loadRef)+'</b>' : (x.onTruck===false ? '<b style="color:#EF9F27;">Waiting for a truck</b>' : '<b>Truck</b>'))+' · '+e(x.customer)+(x.orderNo?' #'+e(x.orderNo):'')+' &nbsp;<span style="display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;'+((x.field||'notes')==='notes' ? 'background:#E6F1FB;color:#0C447C;">Drivers notes' : 'background:#EEEDFE;color:#3C3489;">In-House notes')+'</span>'+(((x.field||'notes')==='notes' && x.onTruck!==false && x.loadRef) ? ' <span style="font-size:11px;font-weight:700;color:#EF9F27;">· reprint BOL</span>' : '')+'<br>'+
           '<span style="opacity:.75;">Was:</span> '+(x.from ? '“'+e(x.from)+'”' : '<i>(blank)</i>')+' &nbsp;→&nbsp; <span style="opacity:.75;">Now:</span> <b>'+(x.to ? '“'+e(x.to)+'”' : '<i>(blank)</i>')+'</b>'+
           '<div style="opacity:.65;font-size:11.5px;">Changed by '+e(x.by||'a sales rep')+' · '+when(x.at)+'</div></div>'+
           '<button type="button" class="btn ghost small" data-na="'+e(x.id)+'">Got it</button></div>';
