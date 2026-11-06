@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Plants Express NC load board — book trucks, Pender Nursery orders, dispatch and carrier loads.">
 <title>Plants Express NC — Load Board</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#2C2C2A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plants Express">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -541,6 +549,7 @@
   #pxOverview tr.ov-cx td{color:var(--text-dim);text-decoration:line-through;opacity:.75;}
   #pxOverview tr.ov-cx td:first-child, #pxOverview tr.ov-cx td:nth-child(3){text-decoration:none;}
   #pxOverview .ov-tag.cx{background:rgba(217,48,37,.18);color:#F28B82;border:1px solid #D93025;text-decoration:none;}
+  body.px-phone #pxFsBtn{display:none !important;}
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -5675,6 +5684,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(wbDead) return;
     try{ renderConfirm(); renderRepAlert(); }catch(e){}
     try{ renderGoalStrip(); }catch(e){}
+    try{ if(ph.box && phOn()) phRender(); }catch(e){}
     if(view.tab==='summary'){ renderSummary(); return; }
     if(view.tab==='dispatch'){ renderDispatch(); return; }
     if(view.tab==='trucks'){ if(trkEditing) trkLiveRender(); else renderTrucks(); return; }
@@ -6605,12 +6615,220 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     });
   }
 
+  /* ===== Phone layout: orders as cards + a simple form (same data as the sheet) ===== */
+  var ph = {box:null, scope:'mine', q:'', open:null, showDone:false};
+  function phOn(){ return !!(window.pxPhoneMode && window.pxPhoneMode()); }
+  function phIsMine(r){
+    if(r.createdBy && r.createdBy===myId) return true;
+    var me = String(myName||'').trim().toLowerCase(), meFirst = me.split(/\s+/)[0];
+    var sr = String((r.cells||{}).salesRep||'').trim().toLowerCase(); if(!sr || !me) return false;
+    return sr===me || sr===meFirst || (sr.split(/\s+/)[0]===meFirst && (sr.indexOf(' ')<0 || me.indexOf(' ')<0));
+  }
+  function phTruckStatus(t){
+    var st = t.statusText || ''; try{ var ls = loadStatusMap[t.id]; if(ls && (ls.at||0) > (t.updatedAt||0)) st = ls.statusText || st; }catch(e){}
+    if(t.status==='completed') return 'Delivered';
+    return st || (t.carrier ? 'Carrier assigned' : 'Being scheduled');
+  }
+  function phShortDate(v){ var p = parseDate(v); if(!p) return v||''; return p.m+'/'+p.d; }
+  function phMoney(v){ var n = parseNum(v); return (n==null||isNaN(n)) ? '' : '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function phSetup(){
+    var app = root.querySelector('.app'); if(!app || ph.box) return;
+    var st = document.createElement('style');
+    st.textContent =
+      '.app.phone{height:auto;min-height:100%;}'
+    + '.app.phone>.toolbar,.app.phone>.fbar,.app.phone>.gridwrap,.app.phone>.summary,.app.phone>.tabs,.app.phone .goal-strip,.app.phone .titlebar .sub{display:none!important;}'
+    + '.app.phone .titlebar{padding:10px 12px 4px;gap:8px;flex-wrap:wrap;} .app.phone .titlebar h1{font-size:18px;margin:0;} .app.phone .logo{width:34px;height:34px;}'
+    + '.app.phone .savestate{font-size:12px;margin-left:auto;}'
+    + '.ph{display:none;padding:6px 12px 90px;} .app.phone .ph{display:block;}'
+    + '.ph-hi{color:var(--dim);font-size:14px;margin:0 0 10px;} .ph-hi b{color:var(--text);}'
+    + '.ph-new{display:block;width:100%;background:#97C459;color:#173404;border:0;border-radius:12px;padding:15px;font:700 17px Roboto,Arial,sans-serif;margin-bottom:10px;}'
+    + '.ph-tools{display:flex;gap:8px;margin-bottom:12px;} .ph-tools button{flex:1;background:#383836;color:#F1EFE8;border:1.5px solid #E24B4A;border-radius:999px;padding:9px 6px;font:600 14px Roboto,Arial,sans-serif;}'
+    + '.ph-seg{display:flex;border:1.5px solid #E24B4A;border-radius:999px;overflow:hidden;margin-bottom:8px;} .ph-seg button{flex:1;background:#383836;color:#D3D1C7;border:0;padding:9px;font:600 14px Roboto,Arial,sans-serif;} .ph-seg button.on{background:#97C459;color:#173404;}'
+    + '.ph-q{width:100%;background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;margin-bottom:6px;}'
+    + '.ph-h{font:700 13px Roboto,Arial,sans-serif;letter-spacing:.06em;color:var(--dim);text-transform:uppercase;margin:16px 2px 8px;display:flex;justify-content:space-between;}'
+    + '.ph-card{display:block;width:100%;text-align:left;background:#383836;color:var(--text);border:1px solid #5F5E5A;border-left:5px solid #888780;border-radius:12px;padding:11px 12px;margin-bottom:9px;font:14px Roboto,Arial,sans-serif;}'
+    + '.ph-card.wait{border-left-color:#EF9F27;} .ph-card.truck{border-left-color:#378ADD;} .ph-card.done{border-left-color:#639922;opacity:.85;}'
+    + '.ph-l1{display:flex;gap:8px;align-items:flex-start;} .ph-l1 b{font-size:16px;flex:1;line-height:1.25;}'
+    + '.ph-chip{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#444441;color:#F1EFE8;} .wait .ph-chip{background:#FAEEDA;color:#633806;} .truck .ph-chip{background:#E6F1FB;color:#0C447C;} .done .ph-chip{background:#EAF3DE;color:#27500A;}'
+    + '.ph-l2{color:var(--dim);margin-top:4px;} .ph-l3{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;} .ph-tk{margin-top:7px;padding-top:7px;border-top:1px solid #5F5E5A;color:#B5D4F4;font-weight:600;}'
+    + '.ph-empty{color:var(--dim);text-align:center;padding:14px;border:1px dashed var(--line);border-radius:12px;}'
+    + '.ph-more{display:block;width:100%;background:none;border:1px solid var(--line);color:var(--dim);border-radius:10px;padding:10px;font-size:14px;margin-top:4px;}'
+    + '.ph-full{display:block;margin:22px auto 0;background:none;border:0;color:var(--dim);text-decoration:underline;font-size:14px;}'
+    + '.ph-form{position:fixed;inset:0;z-index:9000;background:#2C2C2A;display:flex;flex-direction:column;}'
+    + '.ph-fh{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1.5px solid #E24B4A;} .ph-fh b{flex:1;font-size:17px;} .ph-x{background:none;border:0;color:var(--text);font-size:26px;line-height:1;padding:0 6px;}'
+    + '.ph-fb{flex:1;overflow:auto;padding:10px 14px 20px;-webkit-overflow-scrolling:touch;}'
+    + '.ph-note{background:#E6F1FB;color:#0C447C;border-radius:10px;padding:10px 12px;margin:4px 0 8px;font-size:14px;line-height:1.35;}'
+    + '.ph-g{font:700 12px Roboto,Arial,sans-serif;letter-spacing:.06em;color:#97C459;text-transform:uppercase;margin:16px 0 4px;}'
+    + '.ph-f{display:block;margin:9px 0;} .ph-f span{display:block;font-size:13px;color:var(--dim);margin-bottom:4px;} .ph-f span i{color:#F09595;font-style:normal;}'
+    + '.ph-f input,.ph-f select,.ph-f textarea{width:100%;background:var(--field);color:var(--text);border:1px solid #5F5E5A;border-radius:10px;padding:11px 12px;font-size:16px;font-family:inherit;}'
+    + '.ph-f textarea{min-height:72px;resize:vertical;} .ph-f input[readonly],.ph-f textarea[readonly]{opacity:.6;} .ph-f.bad input{border-color:#F09595;}'
+    + '.ph-two{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;} .ph-three{display:grid;grid-template-columns:2fr 1fr 1.2fr;gap:0 10px;}'
+    + '.ph-ff{display:flex;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid #5F5E5A;background:#2C2C2A;}'
+    + '.ph-save{flex:2;background:#97C459;color:#173404;border:0;border-radius:12px;padding:14px;font:700 16px Roboto,Arial,sans-serif;} .ph-cancel{flex:1;background:none;border:1.5px solid #F09595;color:#F09595;border-radius:12px;padding:12px;font:600 14px Roboto,Arial,sans-serif;}'
+    + '.ph-err{color:#F09595;font-size:14px;margin:8px 0 0;min-height:1em;}'
+    + '.modal{z-index:9500;} .ph-back{display:none;background:#97C459;color:#173404;border:0;border-radius:999px;padding:6px 12px;font:700 13px Roboto,Arial,sans-serif;} .app.narrow:not(.phone) .ph-back{display:inline-block;}';
+    root.appendChild(st);
+    var bk = document.createElement('button'); bk.type = 'button'; bk.className = 'ph-back'; bk.textContent = '📱 Phone view';
+    bk.addEventListener('click', function(){ try{ localStorage.removeItem('px-wb-full'); }catch(x){} phApply(); });
+    var so = root.getElementById('signOut'); so.parentNode.insertBefore(bk, so);
+    ph.box = document.createElement('div'); ph.box.className = 'ph';
+    var tb = root.querySelector('.titlebar'); tb.parentNode.insertBefore(ph.box, tb.nextSibling);
+    ph.box.addEventListener('click', function(e){
+      var t = e.target.closest('[data-ph]'); if(!t) return;
+      var a = t.getAttribute('data-ph');
+      if(a==='new') phForm(null);
+      else if(a==='open') phForm(t.getAttribute('data-id'));
+      else if(a==='scope'){ ph.scope = t.getAttribute('data-v'); phRender(); }
+      else if(a==='done'){ ph.showDone = !ph.showDone; phRender(); }
+      else if(a==='quote'){ if(opts.onQuote) opts.onQuote(); }
+      else if(a==='goals'){ if(opts.onGoals) opts.onGoals(); }
+      else if(a==='full'){ try{ localStorage.setItem('px-wb-full','1'); }catch(x){} phApply(); }
+    });
+    ph.box.addEventListener('input', function(e){ if(e.target.classList.contains('ph-q')){ ph.q = e.target.value; phRender(true); } });
+  }
+  function phApply(){
+    phSetup();
+    var on = phOn(), app = root.querySelector('.app');
+    app.classList.toggle('phone', on); app.classList.toggle('narrow', window.innerWidth <= 760);
+    try{ document.body.classList.toggle('px-phone', on); }catch(e){}
+    if(window.pxFitWorkbookNow) window.pxFitWorkbookNow();
+    if(on) phRender(); else scheduleRender();
+  }
+  function phCard(r, kind){
+    var c = r.cells||{}, tk = pxTruckOf(r.id), chip = 'Waiting for truck', cls = 'wait';
+    if(kind==='truck'){ chip = phTruckStatus(tk); cls = 'truck'; }
+    if(kind==='done'){ chip = 'Delivered'; cls = 'done'; }
+    if(kind==='wait' && r.status && r.status!=='Requested') chip = r.status;
+    var l3 = [];
+    if(c.reqDate) l3.push('📅 '+esc(phShortDate(c.reqDate)));
+    if(c.su) l3.push(esc(c.su)+' SU');
+    if(c.value) l3.push(esc(phMoney(c.value)));
+    if(ph.scope==='all' && c.salesRep) l3.push('👤 '+esc(c.salesRep));
+    var where = [c.city, c.state].filter(Boolean).join(', ');
+    var h = '<button type="button" class="ph-card '+cls+'" data-ph="open" data-id="'+esc(r.id)+'">'
+      + '<div class="ph-l1"><b>'+esc(c.customer||'(no customer name)')+'</b><span class="ph-chip">'+esc(chip)+'</span></div>'
+      + '<div class="ph-l2">'+(c.orderNo ? '#'+esc(c.orderNo) : 'No order #')+(where ? ' · '+esc(where) : '')+'</div>'
+      + (l3.length ? '<div class="ph-l3">'+l3.join('<span></span>')+'</div>' : '');
+    if(tk) h += '<div class="ph-tk">🚚 Truck '+esc(tk.loadRef||'')+(tk.loadDate||tk.date ? ' · '+esc(phShortDate(tk.loadDate||tk.date)) : '')+(tk.carrier ? ' · '+esc(tk.carrier) : '')+'</div>';
+    return h + '</button>';
+  }
+  function phRender(listOnly){
+    if(!ph.box || !phOn()) return;
+    var wait = [], truck = [], done = [], q = ph.q.trim().toLowerCase();
+    var cut = new Date(); cut.setDate(cut.getDate()-14); var cutKey = cut.getFullYear()*10000+(cut.getMonth()+1)*100+cut.getDate();
+    rows.forEach(function(r){
+      if(r.archived || r.status==='Canceled') return;
+      if(ph.scope==='mine' && !phIsMine(r)) return;
+      if(q && !COLS.some(function(c){ return String(cellRaw(r,c)).toLowerCase().indexOf(q)>-1; })) return;
+      var tk = pxTruckOf(r.id);
+      if(r.status==='Delivered' || (tk && tk.status==='completed')){
+        var p = parseDate((tk && (tk.loadDate||tk.date)) || (r.cells||{}).reqDate);
+        if(!p || p.key >= cutKey) done.push(r);
+      } else if(tk || r.onTruck) truck.push(r);
+      else wait.push(r);
+    });
+    var byDate = function(a,b){ var x = parseDate((a.cells||{}).reqDate), y = parseDate((b.cells||{}).reqDate); return (x?x.key:99999999)-(y?y.key:99999999) || (a.createdAt||0)-(b.createdAt||0); };
+    wait.sort(byDate); truck.sort(byDate); done.sort(function(a,b){ return -byDate(a,b); });
+    var sec = function(title, list, kind, empty){
+      return '<div class="ph-h"><span>'+title+'</span><span>'+list.length+'</span></div>'
+        + (list.length ? list.map(function(r){ return phCard(r, kind); }).join('') : '<div class="ph-empty">'+empty+'</div>');
+    };
+    var lists = sec('Waiting for a truck', wait, 'wait', 'Nothing waiting.')
+      + sec('On a truck', truck, 'truck', 'No orders on a truck right now.')
+      + (done.length ? '<button type="button" class="ph-more" data-ph="done">'+(ph.showDone ? 'Hide' : 'Show')+' delivered (last 2 weeks) · '+done.length+'</button>' + (ph.showDone ? done.map(function(r){ return phCard(r,'done'); }).join('') : '') : '');
+    if(listOnly && ph.box.querySelector('.ph-lists')){ ph.box.querySelector('.ph-lists').innerHTML = lists; return; }
+    ph.box.innerHTML =
+        '<p class="ph-hi">Signed in as <b>'+esc(myName)+'</b></p>'
+      + (canWrite ? '<button type="button" class="ph-new" data-ph="new">＋ New order</button>' : '')
+      + '<div class="ph-tools"><button type="button" data-ph="quote">🧮 Freight quote</button><button type="button" data-ph="goals">🎯 Sales goals</button></div>'
+      + '<div class="ph-seg"><button type="button" data-ph="scope" data-v="mine" class="'+(ph.scope==='mine'?'on':'')+'">My orders</button><button type="button" data-ph="scope" data-v="all" class="'+(ph.scope==='all'?'on':'')+'">All orders</button></div>'
+      + '<input type="search" class="ph-q" placeholder="Search customer, order #, city…" value="'+esc(ph.q)+'">'
+      + '<div class="ph-lists">'+lists+'</div>'
+      + '<button type="button" class="ph-full" data-ph="full">Show the full spreadsheet instead</button>';
+  }
+  var PH_GROUPS = [
+    ['Order', [['reqDate','orderDate'],['orderNo','staged'],['customer'],['salesRep']]],
+    ['Ship to', [['address'],['city','state','zip']]],
+    ['Size & money', [['su','wt'],['value','terms'],['zone','freight'],['tag']]],
+    ['Contact', [['contact','phone'],['email'],['extra1']]],
+    ['Notes', [['inhouse'],['notes']]]
+  ];
+  function phIso(v){ var p = parseDate(v); if(!p) return ''; return p.y+'-'+String(p.m).padStart(2,'0')+'-'+String(p.d).padStart(2,'0'); }
+  function phField(col, val, ro){
+    var id = 'phf_'+col.k, req = col.req ? ' <i>*</i>' : '', dis = ro ? ' disabled' : '', inp;
+    if(col.type==='date') inp = '<input type="date" id="'+id+'" value="'+esc(phIso(val))+'"'+(ro?' readonly':'')+'>';
+    else if(col.type==='zone') inp = '<select id="'+id+'"'+dis+'>'+fzOptions(val)+'</select>';
+    else if(col.type==='yn') inp = '<select id="'+id+'"'+dis+'><option value=""></option><option'+(val==='Y'?' selected':'')+'>Y</option><option'+(val==='N'?' selected':'')+'>N</option></select>';
+    else if(col.type==='salesrep'){ var list = repNames().slice(); if(val && list.indexOf(val)<0) list.unshift(val);
+      inp = '<select id="'+id+'"'+dis+'><option value=""></option>'+list.map(function(n){ return '<option'+(n===val?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select>'; }
+    else if(col.k==='inhouse'||col.k==='notes'||col.k==='address') inp = '<textarea id="'+id+'" rows="'+(col.k==='address'?2:3)+'"'+(ro?' readonly':'')+'>'+esc(val)+'</textarea>';
+    else { var t = (col.type==='num'||col.type==='money') ? ' inputmode="decimal"' : col.k==='phone' ? ' type="tel"' : col.k==='email' ? ' type="email"' : '';
+      if(col.k==='state') t += ' maxlength="2" autocapitalize="characters"';
+      inp = '<input'+(t.indexOf('type=')>-1?'':' type="text"')+t+' id="'+id+'" value="'+esc(val)+'"'+(ro?' readonly':'')+'>'; }
+    return '<label class="ph-f" data-k="'+col.k+'"><span>'+esc(col.label)+req+'</span>'+inp+'</label>';
+  }
+  function phForm(id){
+    var row = id ? rows.get(id) : null; if(id && !row) return;
+    var c = (row && row.cells) || {}, tk = row ? pxTruckOf(row.id) : null, locked = !!(row && (tk || row.onTruck || row.truckLocked));
+    var ro = function(k){ return !canWrite || (locked && k!=='inhouse' && k!=='notes'); };
+    var colOf = function(k){ return COLS.find(function(x){ return x.k===k; }); };
+    var init = row ? c : {salesRep: canonRep(myName) || myName};
+    var body = '';
+    if(tk || (row && row.onTruck)) body += '<div class="ph-note">🚚 On truck <b>'+esc(tk ? tk.loadRef : '')+'</b>'+(tk ? ' · '+esc(phTruckStatus(tk)) : '')+'.<br>You can still change the notes. For anything else, call dispatch.</div>';
+    PH_GROUPS.forEach(function(g){
+      body += '<div class="ph-g">'+g[0]+'</div>';
+      g[1].forEach(function(line){
+        var inner = line.map(function(k){ return phField(colOf(k), init[k]||'', ro(k)); }).join('');
+        body += line.length===1 ? inner : '<div class="'+(line.length===3?'ph-three':'ph-two')+'">'+inner+'</div>';
+      });
+    });
+    if(row) body += '<p style="color:var(--dim);font-size:13px;margin-top:14px;">Entered by '+esc(repName(row)||'—')+'</p>';
+    var f = document.createElement('div'); f.className = 'ph-form';
+    var canCancel = row && canWrite && !locked;
+    f.innerHTML = '<div class="ph-fh"><button type="button" class="ph-x" aria-label="Close">✕</button><b>'+(row ? esc(c.customer||'Order') : 'New order')+'</b></div>'
+      + '<div class="ph-fb">'+body+'<p class="ph-err"></p></div>'
+      + '<div class="ph-ff">'+(canCancel ? '<button type="button" class="ph-cancel">Cancel order</button>' : '')+(canWrite ? '<button type="button" class="ph-save">'+(row ? 'Save changes' : 'Send to dispatch')+'</button>' : '')+'</div>';
+    root.appendChild(f); ph.open = f;
+    var get = function(k){ var el = f.querySelector('#phf_'+k); if(!el) return ''; var v = String(el.value||'').trim();
+      if(colOf(k).type==='date' && v){ var p = parseDate(v); v = p ? p.m+'/'+p.d+'/'+p.y : v; }
+      if(k==='state') v = v.toUpperCase(); return v; };
+    var fz = function(){ var z = f.querySelector('#phf_zone'), fr = f.querySelector('#phf_freight'); if(!z || !fr) return;
+      var pct = fzPct(z.value); if(pct==null){ if(!ro('freight')) fr.readOnly = false; return; }
+      fr.readOnly = true; var n = parseNum(f.querySelector('#phf_value').value); fr.value = (n==null||isNaN(n)) ? '' : (Math.round((pct/100*n+25)*100)/100).toFixed(2); };
+    f.addEventListener('input', fz); f.addEventListener('change', fz); fz();
+    var close = function(){ f.remove(); ph.open = null; phRender(); };
+    f.querySelector('.ph-x').addEventListener('click', close);
+    var sv = f.querySelector('.ph-save');
+    if(sv) sv.addEventListener('click', function(){
+      var cells = {}, miss = [];
+      COLS.forEach(function(col){ if(col.type==='rep'||col.type==='status' || ro(col.k)) return; var v = get(col.k); var nv = normalize(col, v); cells[col.k] = nv==null ? v : nv; });
+      if(!row || !locked) COLS.forEach(function(col){ if(col.req && !cells[col.k]) miss.push(col); });
+      f.querySelectorAll('.ph-f').forEach(function(l){ l.classList.toggle('bad', miss.some(function(m){ return m.k===l.getAttribute('data-k'); })); });
+      if(miss.length){ f.querySelector('.ph-err').textContent = 'Please fill in: '+miss.map(function(m){ return m.label; }).join(', '); var b0 = f.querySelector('.ph-f.bad'); if(b0) b0.scrollIntoView({block:'center'}); return; }
+      if(!row){
+        var clean = {}; Object.keys(cells).forEach(function(k){ if(cells[k]!=='') clean[k] = cells[k]; });
+        clean = (fzPatch(null, {cells:clean}).cells) || clean;
+        storeCreate(newId(), {cells:clean, status:'Requested', createdBy:myId||'local', repName:myName||'', createdAt:Date.now(), updatedAt:Date.now()});
+      } else {
+        var ch = {}; Object.keys(cells).forEach(function(k){ if(String(c[k]||'')!==String(cells[k]||'')) ch[k] = cells[k]; });
+        if(Object.keys(ch).length) storeUpdate(row.id, {cells:ch, updatedAt:Date.now()});
+      }
+      close(); render();
+    });
+    var cb = f.querySelector('.ph-cancel');
+    if(cb) cb.addEventListener('click', function(){
+      confirmBox('Cancel the order for '+(c.customer||'this customer')+'? Dispatch will no longer see it.', function(){
+        storeUpdate(row.id, {status:'Canceled', updatedAt:Date.now()}); close(); render();
+      }, 'Cancel order', 'Keep it');
+    });
+  }
+  window.addEventListener('resize', function(){ if(wbDead) return; var app = root.querySelector('.app'); if(app && (app.classList.contains('phone')!==phOn() || app.classList.contains('narrow')!==(window.innerWidth<=760))) phApply(); });
   /* ---------- start ---------- */
   var unsub = null;
   myId = opts.repId; var myName = opts.repName || '';
   $('whoName').textContent = myName;
   $('signOut').addEventListener('click', function(){ if(opts.onSignOut) opts.onSignOut(); });
-  render(); select(0, 0);
+  render(); select(0, 0); phApply();
   var rt; window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(scheduleRender, 150); });
   if(opts.db){
     mode = 'db';
@@ -6727,8 +6945,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     document.getElementById('pxRepLoginWrap').classList.remove('hidden');
     document.getElementById('pxRepPass').value = '';
   }
+  window.pxPhoneMode = function(){ try{ if(localStorage.getItem('px-wb-full')==='1') return false; }catch(e){} return window.innerWidth <= 760; };
+  window.pxFitWorkbookNow = function(){ try{ pxFitWorkbook(); }catch(e){} };
   function pxFitWorkbook(){
     var host = document.getElementById('pxWbHost'); if(!host || host.classList.contains('hidden') || host.offsetParent===null) return;
+    if(window.pxPhoneMode()){ host.style.height = 'auto'; return; }
     var top = host.getBoundingClientRect().top + window.scrollY;
     host.style.height = Math.max(420, window.innerHeight - (top - window.scrollY) - 14) + 'px';
     var extra = document.documentElement.scrollHeight - window.innerHeight;
