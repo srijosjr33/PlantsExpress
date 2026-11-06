@@ -6629,6 +6629,14 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(t.status==='completed') return 'Delivered';
     return st || (t.carrier ? 'Carrier assigned' : 'Being scheduled');
   }
+  function phWhen(r, tk){   // delivery date + time for an order on a truck (from its stop on the load)
+    if(!tk) return null;
+    var st = (tk.stops||[]).find(function(x){ return x.rowId===r.id; }) || {};
+    var p = parseDate(st.date || tk.date || ''), t = st.time || '', out = '';
+    if(p){ var d = new Date(p.y, p.m-1, p.d); out = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+p.m+'/'+p.d; }
+    if(/^\d{1,2}:\d{2}/.test(t)){ var hp = t.split(':'), h = +hp[0]; out += (out ? ' · ' : '')+((h%12)||12)+':'+hp[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
+    return out ? {text:out, key: p ? p.key : 99999999, t:t} : null;
+  }
   function phShortDate(v){ var p = parseDate(v); if(!p) return v||''; return p.m+'/'+p.d; }
   function phMoney(v){ var n = parseNum(v); return (n==null||isNaN(n)) ? '' : '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function phSetup(){
@@ -6650,6 +6658,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     + '.ph-card.wait{border-left-color:#EF9F27;} .ph-card.truck{border-left-color:#378ADD;} .ph-card.done{border-left-color:#639922;opacity:.85;}'
     + '.ph-l1{display:flex;gap:8px;align-items:flex-start;} .ph-l1 b{font-size:16px;flex:1;line-height:1.25;}'
     + '.ph-chip{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#444441;color:#F1EFE8;} .wait .ph-chip{background:#FAEEDA;color:#633806;} .truck .ph-chip{background:#E6F1FB;color:#0C447C;} .done .ph-chip{background:#EAF3DE;color:#27500A;}'
+    + '.ph-when{margin-top:8px;background:#E6F1FB;color:#0C447C;border-radius:8px;padding:6px 10px;font-weight:700;font-size:15px;} .done .ph-when{background:#EAF3DE;color:#27500A;}'
     + '.ph-l2{color:var(--dim);margin-top:4px;} .ph-l3{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;} .ph-tk{margin-top:7px;padding-top:7px;border-top:1px solid #5F5E5A;color:#B5D4F4;font-weight:600;}'
     + '.ph-empty{color:var(--dim);text-align:center;padding:14px;border:1px dashed var(--line);border-radius:12px;}'
     + '.ph-more{display:block;width:100%;background:none;border:1px solid var(--line);color:var(--dim);border-radius:10px;padding:10px;font-size:14px;margin-top:4px;}'
@@ -6709,6 +6718,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       + '<div class="ph-l1"><b>'+esc(c.customer||'(no customer name)')+'</b><span class="ph-chip">'+esc(chip)+'</span></div>'
       + '<div class="ph-l2">'+(c.orderNo ? '#'+esc(c.orderNo) : 'No order #')+(where ? ' · '+esc(where) : '')+'</div>'
       + (l3.length ? '<div class="ph-l3">'+l3.join('<span></span>')+'</div>' : '');
+    var wn = kind!=='wait' ? phWhen(r, tk) : null;
+    if(wn) h += '<div class="ph-when">🕑 Delivery '+esc(wn.text)+'</div>';
     if(tk) h += '<div class="ph-tk">🚚 Truck '+esc(tk.loadRef||'')+(tk.loadDate||tk.date ? ' · '+esc(phShortDate(tk.loadDate||tk.date)) : '')+(tk.carrier ? ' · '+esc(tk.carrier) : '')+'</div>';
     return h + '</button>';
   }
@@ -6728,7 +6739,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       else wait.push(r);
     });
     var byDate = function(a,b){ var x = parseDate((a.cells||{}).reqDate), y = parseDate((b.cells||{}).reqDate); return (x?x.key:99999999)-(y?y.key:99999999) || (a.createdAt||0)-(b.createdAt||0); };
-    wait.sort(byDate); truck.sort(byDate); done.sort(function(a,b){ return -byDate(a,b); });
+    var byDel = function(a,b){ var x = phWhen(a, pxTruckOf(a.id)), y = phWhen(b, pxTruckOf(b.id)); return ((x?x.key:99999999)-(y?y.key:99999999)) || String(x?x.t:'').localeCompare(String(y?y.t:'')) || byDate(a,b); };
+    wait.sort(byDate); truck.sort(byDel); done.sort(function(a,b){ return -byDate(a,b); });
     var sec = function(title, list, kind, empty){
       return '<div class="ph-h"><span>'+title+'</span><span>'+list.length+'</span></div>'
         + (list.length ? list.map(function(r){ return phCard(r, kind); }).join('') : '<div class="ph-empty">'+empty+'</div>');
@@ -6774,7 +6786,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var colOf = function(k){ return COLS.find(function(x){ return x.k===k; }); };
     var init = row ? c : {salesRep: canonRep(myName) || myName};
     var body = '';
-    if(tk || (row && row.onTruck)) body += '<div class="ph-note">🚚 On truck <b>'+esc(tk ? tk.loadRef : '')+'</b>'+(tk ? ' · '+esc(phTruckStatus(tk)) : '')+'.<br>You can still change the notes. For anything else, call dispatch.</div>';
+    if(tk || (row && row.onTruck)) body += '<div class="ph-note">🚚 On truck <b>'+esc(tk ? tk.loadRef : '')+'</b>'+(tk ? ' · '+esc(phTruckStatus(tk)) : '')+'.'+(function(){ var w = row ? phWhen(row, tk) : null; return w ? '<br><b>Delivery '+esc(w.text)+'</b>' : ''; })()+'<br>You can still change the notes. For anything else, call dispatch.</div>';
     PH_GROUPS.forEach(function(g){
       body += '<div class="ph-g">'+g[0]+'</div>';
       g[1].forEach(function(line){
@@ -7167,7 +7179,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var firstDel = (load.stops||[]).find(function(s){ return s.type==='delivery' && !s.isReturnStop; }) || {};
       var firstPickT = (load.stops||[]).find(function(s){ return s.type==='pickup'; }) || {};
       var stopOrder = (load.stops||[]).filter(function(s){ return s.type===(isBh?'pickup':'delivery') && !s.isReturnStop && !s.locked && s.orderId && String(s.orderId).indexOf('wb_')===0; })
-        .map(function(s){ return {rowId:String(s.orderId).slice(3), time:s.time||'', city:s.city||'', state:s.state||'', zip:s.zip||'', address:s.address||''}; });
+        .map(function(s){ return {rowId:String(s.orderId).slice(3), date:s.date||'', time:s.time||'', city:s.city||'', state:s.state||'', zip:s.zip||'', address:s.address||''}; });
       ids.forEach(function(id){ if(!stopOrder.some(function(x){ return x.rowId===id; })) stopOrder.push({rowId:id, time:''}); });
       out[load.id] = {loadRef: load.ref, driver: load.driver||'', equip: load.equip||'', date: firstDel.date||'', status: load.status||'', orderIds: ids,
         carrier: load.claimedBy||'', statusText: load.status==='claimed' ? loadStatusLabel(load) : statusLabel(load.status||'available'),
