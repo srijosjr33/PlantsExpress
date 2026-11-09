@@ -1687,6 +1687,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
 .summary .wk-grid tbody.trk td.lcA{border-left:3px solid #E24B4A !important;border-bottom:3px solid #E24B4A !important;border-top-left-radius:12px !important;border-bottom-left-radius:12px !important;min-width:160px;vertical-align:top;}
 .summary .wk-grid tbody.trk td.lcB{border-bottom:3px solid #E24B4A !important;min-width:120px;vertical-align:top;}
 .wk-k{display:block;font-size:10px;color:#6B6558;font-weight:700;letter-spacing:.05em;margin-top:7px;}
+.wk-dlv{white-space:nowrap;}
 .wk-ph{font-weight:600;font-size:12.5px;}
 .wk-big{display:block;font-size:15.5px;font-weight:800;color:#3B6D11;margin-top:9px;line-height:1.25;white-space:normal;}
 .wk-rec{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:800;border-radius:999px;padding:2px 9px;white-space:nowrap;}
@@ -6576,7 +6577,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         var recHtml = '';
         if(t.cost > 0){ var rp = Math.round(fr / t.cost * 100); recHtml = '<span class="wk-rec '+(rp >= (t.recTarget||90) ? 'good' : 'bad')+'">Freight recovery '+rp+'%</span>'; }
         var lab = function(x){ return '<span class="wk-k">'+x+'</span>'; };
-        var leftHtml = '<td class="lc lcA" rowspan="'+(nStops+1)+'"><b>'+esc(trkDate(t.__day))+'</b>'+
+        var dlv = (function(){ var ds = (t.stops||[]).map(function(x){ return x.date||''; }).filter(Boolean).sort(); var f = ds[0] || t.date || '', l = ds.length ? ds[ds.length-1] : f; return f ? (l && l!==f ? trkDate(f).replace(/\/\d{4}$/,'')+'–'+trkDate(l) : trkDate(f)) : '—'; })();
+        var leftHtml = '<td class="lc lcA" rowspan="'+(nStops+1)+'"><b class="wk-dlv">DELIVERING '+esc(dlv)+'</b>'+
             lab('CARRIER')+'<b>'+(esc(t.carrier||'')||'—')+'</b>'+
             lab('DRIVER')+(t.driverName ? '<b>'+esc(t.driverName)+'</b>'+(t.driverPhone?'<br><span class="wk-ph">'+esc(t.driverPhone)+'</span>':'') : '—')+
             (t.statusText ? '<span class="wk-big">'+esc(t.statusText)+'</span>' : '')+recHtml+'</td>'+
