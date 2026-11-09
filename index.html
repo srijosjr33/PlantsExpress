@@ -6547,7 +6547,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     TRK_DAYS.forEach(function(dayName, di){
       var dayTrucks = byDay[di] || [];
       if(di>4 && !dayTrucks.length) return;
-      body += '<tbody class="dayb">'+'<tr class="gap"><td colspan="'+COLS_W.length+'"></td></tr>'+'<tr class="day"><td colspan="'+COLS_W.length+'"><div class="day-in">'+dayName+'<span class="day-dt">'+(function(){ var d = new Date(view.truckWeek+'T12:00:00'); d.setDate(d.getDate()+di); return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); })()+'</span></div></td></tr>'+'<tr class="gap"><td colspan="'+COLS_W.length+'"></td></tr>'+'</tbody>';
+      body += '<tbody class="dayb">'+'<tr class="gap"><td colspan="'+COLS_W.length+'"></td></tr>'+'<tr class="day"><td colspan="'+COLS_W.length+'"><div class="day-in">LOADING '+dayName+'<span class="day-dt">'+(function(){ var d = new Date(view.truckWeek+'T12:00:00'); d.setDate(d.getDate()+di); return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); })()+'</span></div></td></tr>'+'<tr class="gap"><td colspan="'+COLS_W.length+'"></td></tr>'+'</tbody>';
       dayTrucks.forEach(function(t){
         var stopList = (t.stops && t.stops.length) ? t.stops : (t.orderIds||[]).map(function(id){ return {rowId:id}; });
         var lt = trkTime(t.loadTime).replace(':00','').replace(' ','');
