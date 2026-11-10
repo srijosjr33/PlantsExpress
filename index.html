@@ -550,6 +550,27 @@
   #pxOverview tr.ov-cx td:first-child, #pxOverview tr.ov-cx td:nth-child(3){text-decoration:none;}
   #pxOverview .ov-tag.cx{background:rgba(217,48,37,.18);color:#F28B82;border:1px solid #D93025;text-decoration:none;}
   body.px-phone #pxFsBtn{display:none !important;}
+
+  /* Archive (Admin) — same look as the workbook's Archive tab */
+  #pxArchList .ar-empty{color:var(--text-dim);padding:30px;text-align:center;border:1px dashed var(--border, #555);border-radius:10px;}
+  [data-admpanel="archive"] .ar-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
+  [data-admpanel="archive"] .ar-q{flex:1;min-width:220px;max-width:420px;margin:0;}
+  [data-admpanel="archive"] .ar-m{max-width:200px;margin:0;}
+  [data-admpanel="archive"] .ar-n{color:var(--text-dim);font-size:13px;margin-left:auto;}
+  #pxArchList .ar-month{font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#97C459;margin:18px 2px 8px;font-size:13px;border-bottom:4px solid #E53935;padding-bottom:4px;}
+  #pxArchList .ar-load{background:#EDE7D6;color:#1a1a1a;border:2px solid #B4B2A9;border-radius:12px;margin-bottom:8px;overflow:hidden;}
+  #pxArchList .ar-load.open{border-color:#E24B4A;}
+  #pxArchList .ar-head{display:grid;grid-template-columns:minmax(130px,1.1fr) repeat(8,minmax(80px,1fr)) 80px;gap:8px;align-items:center;width:100%;background:none;border:0;padding:10px 14px;text-align:left;font:inherit;color:inherit;cursor:pointer;font-weight:600;font-size:13.5px;min-width:980px;}
+  #pxArchList .ar-head small{display:block;font-size:10px;color:#6B6558;font-weight:700;letter-spacing:.05em;}
+  #pxArchList .ar-ref{font-size:15px;font-weight:700;}
+  #pxArchList .ar-ref i{font-style:normal;font-size:10px;background:#E24B4A;color:#fff;border-radius:999px;padding:1px 7px;vertical-align:middle;}
+  #pxArchList .ar-tog{color:#185FA5;font-size:12.5px;text-align:right;}
+  #pxArchList .ar-t{width:100%;border-collapse:collapse;background:#F6F3EA;font-size:13px;color:#1a1a1a;}
+  #pxArchList .ar-t th{background:#D3D1C7;color:#1a1a1a;text-align:left;padding:6px 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;}
+  #pxArchList .ar-t td{padding:6px 8px;border-top:1px solid #D3D1C7;}
+  #pxArchList .ar-acts{padding:8px 14px;display:flex;gap:8px;}
+  #pxArchList .ar-acts .btn{color:#1a1a1a;border-color:#888780;}
+  #pxArchList .ar-hist{padding:0 14px 10px;font-size:12px;}
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -849,8 +870,8 @@
         <div data-admpanel="sgoals" id="pxAdmSales" style="margin-bottom:20px;"></div>
         <div class="panel panel-pad" data-admpanel="archive">
           <div class="section-title">Completed loads archive</div>
-          <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Completed loads move here at the end of the month. A week that runs into a new month counts under the new month (the month its Friday falls in). Their orders leave the Pender workbook and the Delivery Trucks tab at the same time. Nothing is deleted.</div>
-          <input id="pxArchSearch" type="search" placeholder="Search by load #, customer, city, carrier or order #" style="max-width:420px;margin-bottom:12px;">
+          <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Every delivered load is listed here, newest first — the same list sales and sales support see in the workbook’s Archive tab. At the end of the month, delivered loads also leave the workbook’s Pending and Delivery Trucks tabs. Nothing is deleted.</div>
+          <div class="ar-bar"><input id="pxArchSearch" class="ar-q" type="search" placeholder="Search load #, customer, order #, city, carrier…"><select id="pxArchMonth" class="ar-m"><option value="">All months</option></select><span class="ar-n" id="pxArchCount"></span></div>
           <div id="pxArchList" style="overflow-x:auto;"></div>
         </div>
       </div>
@@ -1768,6 +1789,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   <div class="tabs" id="tabs">
     <button type="button" data-tab="requests" class="on">Pending</button>
     <button type="button" data-tab="trucks">Delivery Trucks</button>
+    <button type="button" data-tab="archive">Archive</button>
   </div>
 </div>
 
@@ -5694,6 +5716,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(view.tab==='summary'){ renderSummary(); return; }
     if(view.tab==='dispatch'){ renderDispatch(); return; }
     if(view.tab==='trucks'){ if(trkEditing) trkLiveRender(); else renderTrucks(); return; }
+    if(view.tab==='archive'){ renderArchive(); return; }
     var selId = disp[sel.r] ? disp[sel.r].id : null;
     buildDisp();
     if(selId){ var ni = disp.findIndex(function(r){return r && r.id===selId;}); if(ni>-1) sel.r = ni; }
@@ -6413,7 +6436,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     render();
     if(!isSum){ select(sel.r, sel.c); wrapEl.focus({preventScroll:true}); }
   });
-  function renderSummaryIfOpen(){ if(view.tab==='summary') renderSummary(); else if(view.tab==='dispatch') renderDispatch(); else if(view.tab==='trucks') renderTrucksIfOpen(); }
+  function renderSummaryIfOpen(){ if(view.tab==='summary') renderSummary(); else if(view.tab==='dispatch') renderDispatch(); else if(view.tab==='trucks') renderTrucksIfOpen(); else if(view.tab==='archive') renderArchive(); }
   function renderSummary(){
     var mine = Array.from(rows.values()).filter(function(r){ return r.createdBy===myId; });
     var all = Array.from(rows.values());
@@ -6842,6 +6865,83 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     });
   }
   window.addEventListener('resize', function(){ if(wbDead) return; var app = root.querySelector('.app'); if(app && (app.classList.contains('phone')!==phOn() || app.classList.contains('narrow')!==(window.innerWidth<=760))) phApply(); });
+  /* ===== Archive tab: delivered (completed) Pender loads, for sales & sales support ===== */
+  var arch = {q:'', month:'', mine:false, open:{}};
+  function archLoads(){ try{ return (window.pxWbArchiveData ? window.pxWbArchiveData() : []); }catch(e){ return []; } }
+  function archMonthKey(l){ var d = l.loadDate || (l.stops[0]||{}).date || (l.completedAt ? new Date(l.completedAt).toISOString().slice(0,10) : ''); return String(d).slice(0,7); }
+  function archMonthName(k){ var p = k.split('-'); if(p.length<2) return 'No date'; return ['January','February','March','April','May','June','July','August','September','October','November','December'][(+p[1])-1]+' '+p[0]; }
+  function archCells(l, s){ var r = rows.get(s.rowId); return (r && r.cells) || (l.cells||{})[s.rowId] || {}; }
+  function archTime(t){ if(!/^\d{1,2}:\d{2}/.test(t||'')) return ''; var p = t.split(':'), h = +p[0]; return ((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
+  function renderArchive(){
+    var box = $('summary'); if(!box) return;
+    var all = archLoads(), q = arch.q.trim().toLowerCase();
+    var months = {}; all.forEach(function(l){ months[archMonthKey(l)] = true; });
+    var mKeys = Object.keys(months).sort().reverse();
+    var list = all.filter(function(l){
+      if(arch.month && archMonthKey(l)!==arch.month) return false;
+      if(arch.mine && !l.stops.some(function(s){ var r = rows.get(s.rowId); return r && phIsMine(r); })) return false;
+      if(!q) return true;
+      var words = [l.loadNo, l.carrier, l.driverName, l.equip, l.vehicleNo].concat(l.stops.map(function(s){ var c = archCells(l, s); return [c.orderNo, c.customer, c.city||s.city, c.state||s.state, c.salesRep].join(' '); }));
+      return words.join(' ').toLowerCase().indexOf(q) > -1;
+    });
+    var focusQ = box.querySelector('.ar-q') && root.activeElement === box.querySelector('.ar-q');
+    var h = '<div class="ar-bar"><h2>Archive <span>· delivered loads</span></h2>'
+      + '<input type="search" class="ar-q" placeholder="Search load #, customer, order #, city, carrier…" value="'+esc(arch.q)+'">'
+      + '<select class="ar-m"><option value="">All months</option>'+mKeys.map(function(k){ return '<option value="'+esc(k)+'"'+(k===arch.month?' selected':'')+'>'+esc(archMonthName(k))+'</option>'; }).join('')+'</select>'
+      + '<label class="ar-mine"><input type="checkbox" class="ar-mc"'+(arch.mine?' checked':'')+'> Only my orders</label>'
+      + '<span class="ar-n">'+list.length+' load'+(list.length===1?'':'s')+'</span></div>';
+    if(!list.length) h += '<div class="ar-empty">'+(all.length ? 'Nothing matches that search.' : 'No delivered loads yet.')+'</div>';
+    var lastM = null;
+    list.forEach(function(l){
+      var mk = archMonthKey(l);
+      if(mk!==lastM){ h += '<div class="ar-month">'+esc(archMonthName(mk))+'</div>'; lastM = mk; }
+      var su = 0, val = 0;
+      l.stops.forEach(function(s){ var c = archCells(l, s); su += parseNum(c.su)||0; val += parseNum(c.value)||0; });
+      var dds = l.stops.map(function(s){ return s.date; }).filter(Boolean).sort();
+      var del = dds.length ? (dds[0]!==dds[dds.length-1] ? trkDate(dds[0]).replace(/\/\d{4}$/,'')+'–'+trkDate(dds[dds.length-1]) : trkDate(dds[0])) : (l.completedAt ? new Date(l.completedAt).toLocaleDateString('en-US') : '—');
+      var open = !!arch.open[l.id];
+      h += '<div class="ar-load'+(open?' open':'')+'">'
+        + '<button type="button" class="ar-head" data-ar="'+esc(l.id)+'">'
+        + '<span class="ar-ref">'+esc(l.loadNo)+(l.backhaul?' <i>BACKHAUL</i>':'')+'</span>'
+        + '<span><small>LOADED</small>'+esc(trkDate(l.loadDate)||'—')+'</span>'
+        + '<span><small>DELIVERED</small>'+esc(del)+'</span>'
+        + '<span><small>CARRIER</small>'+esc(l.carrier||'—')+'</span>'
+        + '<span><small>DRIVER</small>'+esc(l.driverName||'—')+'</span>'
+        + '<span><small>TRUCK</small>'+esc(l.equip||'—')+(l.vehicleNo?' #'+esc(l.vehicleNo):'')+'</span>'
+        + '<span><small>ORDERS</small>'+l.stops.length+'</span>'
+        + '<span><small>SU</small>'+su.toLocaleString('en-US')+'</span>'
+        + '<span><small>VALUE</small>$'+val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span>'
+        + '<span class="ar-tog">'+(open?'▲ Hide':'▼ Orders')+'</span></button>';
+      if(open){
+        h += '<table class="ar-t"><thead><tr><th>#</th><th>Order #</th><th>Customer</th><th>Address</th><th>City</th><th>ST</th><th>SU</th><th>Value</th><th>Sales rep</th><th>Delivered</th></tr></thead><tbody>'
+          + l.stops.map(function(s, i){ var c = archCells(l, s);
+              return '<tr><td>'+(i+1)+'</td><td>'+esc(c.orderNo||'')+'</td><td><b>'+esc(c.customer||'')+'</b></td><td>'+esc(c.address||s.address||'')+'</td><td>'+esc(c.city||s.city||'')+'</td><td>'+esc(c.state||s.state||'')+'</td><td>'+esc(c.su||'')+'</td><td>'+esc(c.value ? '$'+(parseNum(c.value)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '')+'</td><td>'+esc(c.salesRep||'')+'</td><td>'+esc([trkDate(s.date), archTime(s.time)].filter(Boolean).join(' '))+'</td></tr>'; }).join('')
+          + '</tbody></table>';
+      }
+      h += '</div>';
+    });
+    var sc = box.scrollTop;
+    box.innerHTML = h; box.scrollTop = sc;
+    if(focusQ){ var qi = box.querySelector('.ar-q'); qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
+  }
+  (function(){
+    var st = document.createElement('style');
+    st.textContent = '.ar-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;} .ar-bar h2{margin:0 8px 0 0;font-size:20px;} .ar-bar h2 span{font-weight:400;color:var(--dim);font-size:14px;}'
+      + '.ar-q{flex:1;min-width:220px;max-width:420px;background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;}'
+      + '.ar-m{background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;} .ar-mine{color:var(--text);font-size:13px;display:flex;gap:6px;align-items:center;} .ar-n{color:var(--dim);font-size:13px;margin-left:auto;}'
+      + '.ar-empty{color:var(--dim);padding:30px;text-align:center;border:1px dashed var(--line);border-radius:10px;}'
+      + '.ar-month{font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#97C459;margin:18px 2px 8px;font-size:13px;border-bottom:4px solid #E53935;padding-bottom:4px;}'
+      + '.ar-load{background:#EDE7D6;color:#1a1a1a;border:2px solid #B4B2A9;border-radius:12px;margin-bottom:8px;overflow:hidden;} .ar-load.open{border-color:#E24B4A;}'
+      + '.ar-head{display:grid;grid-template-columns:minmax(130px,1.1fr) repeat(8,minmax(80px,1fr)) 80px;gap:8px;align-items:center;width:100%;background:none;border:0;padding:10px 14px;text-align:left;font:inherit;color:inherit;cursor:pointer;font-weight:600;font-size:13.5px;}'
+      + '.ar-head small{display:block;font-size:10px;color:#6B6558;font-weight:700;letter-spacing:.05em;} .ar-ref{font-size:15px;font-weight:700;} .ar-ref i{font-style:normal;font-size:10px;background:#E24B4A;color:#fff;border-radius:999px;padding:1px 7px;vertical-align:middle;} .ar-tog{color:#185FA5;font-size:12.5px;text-align:right;}'
+      + '.ar-t{width:100%;border-collapse:collapse;background:#F6F3EA;font-size:13px;} .ar-t th{background:#D3D1C7;text-align:left;padding:6px 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;} .ar-t td{padding:6px 8px;border-top:1px solid #D3D1C7;}';
+    root.appendChild(st);
+    var box = $('summary');
+    box.addEventListener('click', function(e){ var b = e.target.closest('[data-ar]'); if(!b || view.tab!=='archive') return; var id = b.getAttribute('data-ar'); arch.open[id] = !arch.open[id]; renderArchive(); });
+    box.addEventListener('input', function(e){ if(view.tab!=='archive') return; if(e.target.classList.contains('ar-q')){ arch.q = e.target.value; renderArchive(); } });
+    box.addEventListener('change', function(e){ if(view.tab!=='archive') return; if(e.target.classList.contains('ar-m')){ arch.month = e.target.value; renderArchive(); } else if(e.target.classList.contains('ar-mc')){ arch.mine = e.target.checked; renderArchive(); } });
+    window.__pxWbArchRefresh = function(){ if(!wbDead && view.tab==='archive') renderArchive(); };
+  })();
   /* ---------- start ---------- */
   var unsub = null;
   myId = opts.repId; var myName = opts.repName || '';
@@ -8344,33 +8444,109 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     return out.sort(function(a,b){ return (b.load.completedAt||0)-(a.load.completedAt||0); });
   }
   var pxArchOpen = {};
+  window.pxWbArchiveData = function(){
+    var seen = {}, out = [];
+    var add = function(l, orders){
+      if(!l || seen[l.id] || l.status!=='completed' || !l.isPender) return; seen[l.id] = true;
+      var isBh = l.direction==='backhaul';
+      var wbOf = function(id){ return String(id||'').indexOf('wb_')===0 ? String(id).slice(3) : ''; };
+      var stops = (l.stops||[]).filter(function(s){ return s.type===(isBh?'pickup':'delivery') && !s.isReturnStop && wbOf(s.orderId); })
+        .map(function(s){ return {rowId:wbOf(s.orderId), date:s.date||'', time:s.time||'', city:s.city||'', state:s.state||'', address:s.address||''}; });
+      (l.sourceRequestIds||[]).forEach(function(id){ var w = wbOf(id); if(w && !stops.some(function(x){ return x.rowId===w; })) stops.push({rowId:w, date:'', time:''}); });
+      if(!stops.length) return;
+      var cells = {}; (orders||[]).forEach(function(o){ var w = wbOf(o.id); if(w && o.wbCells) cells[w] = o.wbCells; });
+      var fp = (l.stops||[]).find(function(s){ return s.type==='pickup'; }) || {};
+      out.push({id:String(l.id), loadNo:pxLoadNo(l.ref), backhaul:isBh, loadDate: fp.date || (l.createdAt ? new Date(l.createdAt).toISOString().slice(0,10) : ''), completedAt: l.completedAt||0,
+        carrier: l.claimedBy||'', driverName: l.driverName||'', equip: l.equip||'', vehicleNo: l.vehicleNo||'', stops: stops, cells: cells});
+    };
+    loads.forEach(function(l){ add(l, (l.sourceRequestIds||[]).map(function(id){ return deliveryLogOrders.find(function(o){ return o.id===id; }); }).filter(Boolean)); });
+    (PX.archive||[]).forEach(function(a){ add(a.load, a.orders); });
+    return out.sort(function(a,b){ return String(b.loadDate).localeCompare(String(a.loadDate)) || (b.completedAt-a.completedAt); });
+  };
+  var pxArchUI = {month:'', open:{}, hist:{}};
+  function pxArchAllEntries(){
+    var out = pxArchiveEntries().slice(), seen = {}; out.forEach(function(a){ seen[a.load.id] = true; });
+    loads.forEach(function(l){ if(l.status==='completed' && !seen[l.id]){
+      out.push({load:l, orders:(l.sourceRequestIds||[]).map(function(id){ return deliveryLogOrders.find(function(o){ return o.id===id; }) || requests.find(function(r){ return r.id===id; }); }).filter(Boolean)});
+    } });
+    return out;
+  }
+  function pxArchItems(){
+    var reqRows = {}; (PX.requestRows||[]).forEach(function(r){ reqRows[r.id] = r; });
+    return pxArchAllEntries().map(function(a){
+      var l = a.load, isBh = l.direction==='backhaul';
+      var st = (l.stops||[]).filter(function(s){ return s.type===(isBh?'pickup':'delivery') && !s.isReturnStop; });
+      var fp = (l.stops||[]).find(function(s){ return s.type==='pickup'; }) || {};
+      var stops = st.map(function(s){
+        var o = (a.orders||[]).find(function(x){ return x.id===s.orderId; }) || {};
+        var wb = String(s.orderId||'').indexOf('wb_')===0 ? reqRows[String(s.orderId).slice(3)] : null;
+        var c = (wb && wb.cells) || o.wbCells || {customer: s.company||o.shipperName||'', orderNo: o.orderNo||'', su: s.units||'', city: s.city, state: s.state, address: s.address};
+        return {cells:c, date:s.date||'', time:s.time||'', city:s.city||'', state:s.state||'', address:s.address||''};
+      });
+      return {id:String(l.id), load:l, loadNo:pxLoadNo(l.ref), backhaul:isBh, loadDate: fp.date || (l.createdAt ? new Date(l.createdAt).toISOString().slice(0,10) : ''),
+        completedAt:l.completedAt||0, carrier:l.claimedBy||'', driverName:l.driverName||'', equip:l.equip||'', vehicleNo:l.vehicleNo||'', stops:stops};
+    }).sort(function(a,b){ return String(b.loadDate).localeCompare(String(a.loadDate)) || (b.completedAt-a.completedAt); });
+  }
+  function pxArchDate(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (+m[2])+'/'+(+m[3])+'/'+m[1] : ''; }
+  function pxArchTime(t){ if(!/^\d{1,2}:\d{2}/.test(t||'')) return ''; var p = t.split(':'), h = +p[0]; return ((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
+  function pxArchNum(v){ var n = parseFloat(String(v||'').replace(/[$,\s]/g,'')); return isNaN(n) ? 0 : n; }
+  function pxArchMonth(it){ var d = it.loadDate || (it.stops[0]||{}).date || (it.completedAt ? new Date(it.completedAt).toISOString().slice(0,10) : ''); return String(d).slice(0,7); }
+  function pxArchMonthName(k){ var p = String(k).split('-'); if(p.length<2) return 'No date'; return ['January','February','March','April','May','June','July','August','September','October','November','December'][(+p[1])-1]+' '+p[0]; }
   function pxRenderArchive(){
     var box = document.getElementById('pxArchList'); if(!box) return;
     var q = (document.getElementById('pxArchSearch').value||'').trim().toLowerCase();
-    var list = pxArchiveEntries().filter(function(a){
+    var all = pxArchItems();
+    var months = {}; all.forEach(function(it){ months[pxArchMonth(it)] = true; });
+    var mSel = document.getElementById('pxArchMonth');
+    if(mSel){ var keys = Object.keys(months).sort().reverse(); mSel.innerHTML = '<option value="">All months</option>'+keys.map(function(k){ return '<option value="'+pxEsc(k)+'"'+(k===pxArchUI.month?' selected':'')+'>'+pxEsc(pxArchMonthName(k))+'</option>'; }).join(''); }
+    var list = all.filter(function(it){
+      if(pxArchUI.month && pxArchMonth(it)!==pxArchUI.month) return false;
       if(!q) return true;
-      var l = a.load, words = [''+pxLoadNo(l.ref), String(l.ref), l.claimedBy, l.equip, l.shipper].concat((l.stops||[]).map(function(s){ return [s.company, s.city, s.state].join(' '); }))
-        .concat(a.orders.map(function(o){ var c = o.wbCells||{}; return [c.orderNo, c.customer, o.ref, o.shipperName].join(' '); }));
+      var words = [it.loadNo, it.carrier, it.driverName, it.equip, it.vehicleNo, it.load.shipper].concat(it.stops.map(function(s){ var c = s.cells; return [c.orderNo, c.customer, c.city||s.city, c.state||s.state, c.salesRep].join(' '); }));
       return words.join(' ').toLowerCase().indexOf(q) > -1;
     });
-    if(!list.length){ box.innerHTML = '<div style="font-size:12px;color:var(--text-dim);">'+(q?'Nothing matches that search.':'No archived loads yet. Completed loads show up here at the end of the month.')+'</div>'; return; }
-    box.innerHTML = '<table class="sheet-table adm-table"><thead><tr><th>Load #</th><th>Completed</th><th>Carrier</th><th>Equipment</th><th>Route</th><th>Orders</th><th>SU</th><th>Weight</th><th></th></tr></thead><tbody>'+
-      list.map(function(a){
-        var l = a.load, st = l.stops||[];
-        var route = st.length ? [st[0].city, st[st.length-1].city].filter(Boolean).join(' → ') : '';
-        var su = st.reduce(function(t,s){ return t + (parseFloat(s.units)||0); }, 0) || parseFloat(l.manualUnits)||0;
-        var open = !!pxArchOpen[l.id];
-        return '<tr><td><b>'+pxEsc(pxLoadNo(l.ref))+'</b></td><td>'+(l.completedAt?new Date(l.completedAt).toLocaleDateString():'')+'</td><td>'+pxEsc(l.claimedBy||'')+'</td><td>'+pxEsc(l.equip||'')+'</td><td>'+pxEsc(route)+(st.length>2?' ('+st.length+' stops)':'')+'</td>'+
-          '<td>'+a.orders.length+'</td><td>'+su.toLocaleString('en-US')+'</td><td>'+Number(l.weight||0).toLocaleString('en-US')+'</td>'+
-          '<td style="white-space:nowrap;"><button class="btn ghost small arch-bol" data-id="'+pxEsc(l.id)+'" type="button">BOL / rate sheet</button> <button class="btn ghost small arch-hist" data-id="'+pxEsc(l.id)+'" type="button">'+(open?'Hide':'History')+'</button></td></tr>'+
-          (open ? '<tr><td colspan="9" style="white-space:normal;font-size:12px;">'+((l.events||[]).map(function(ev){ return '<div>'+new Date(ev.ts).toLocaleString()+' — '+pxEsc(ev.label)+'</div>'; }).join('') || 'No history recorded.')+'</td></tr>' : '');
-      }).join('')+'</tbody></table>';
+    var cnt = document.getElementById('pxArchCount'); if(cnt) cnt.textContent = list.length+' load'+(list.length===1?'':'s');
+    if(!list.length){ box.innerHTML = '<div class="ar-empty">'+(all.length ? 'Nothing matches that search.' : 'No delivered loads yet.')+'</div>'; return; }
+    var money = function(n){ return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+    var h = '', lastM = null;
+    list.forEach(function(it){
+      var mk = pxArchMonth(it);
+      if(mk!==lastM){ h += '<div class="ar-month">'+pxEsc(pxArchMonthName(mk))+'</div>'; lastM = mk; }
+      var su = 0, val = 0; it.stops.forEach(function(s){ su += pxArchNum(s.cells.su); val += pxArchNum(s.cells.value); });
+      var dds = it.stops.map(function(s){ return s.date; }).filter(Boolean).sort();
+      var del = dds.length ? (dds[0]!==dds[dds.length-1] ? pxArchDate(dds[0]).replace(/\/\d{4}$/,'')+'–'+pxArchDate(dds[dds.length-1]) : pxArchDate(dds[0])) : (it.completedAt ? new Date(it.completedAt).toLocaleDateString('en-US') : '—');
+      var open = !!pxArchUI.open[it.id];
+      h += '<div class="ar-load'+(open?' open':'')+'"><button type="button" class="ar-head" data-ar="'+pxEsc(it.id)+'">'
+        + '<span class="ar-ref">'+pxEsc(it.loadNo)+(it.backhaul?' <i>BACKHAUL</i>':'')+'</span>'
+        + '<span><small>LOADED</small>'+pxEsc(pxArchDate(it.loadDate)||'—')+'</span>'
+        + '<span><small>DELIVERED</small>'+pxEsc(del)+'</span>'
+        + '<span><small>CARRIER</small>'+pxEsc(it.carrier||'—')+'</span>'
+        + '<span><small>DRIVER</small>'+pxEsc(it.driverName||'—')+'</span>'
+        + '<span><small>TRUCK</small>'+pxEsc(it.equip||'—')+(it.vehicleNo?' #'+pxEsc(it.vehicleNo):'')+'</span>'
+        + '<span><small>ORDERS</small>'+it.stops.length+'</span>'
+        + '<span><small>SU</small>'+su.toLocaleString('en-US')+'</span>'
+        + '<span><small>VALUE</small>'+money(val)+'</span>'
+        + '<span class="ar-tog">'+(open?'▲ Hide':'▼ Orders')+'</span></button>';
+      if(open){
+        h += '<table class="ar-t"><thead><tr><th>#</th><th>Order #</th><th>Customer</th><th>Address</th><th>City</th><th>ST</th><th>SU</th><th>Value</th><th>Sales rep</th><th>Delivered</th></tr></thead><tbody>'
+          + it.stops.map(function(s, i){ var c = s.cells;
+              return '<tr><td>'+(i+1)+'</td><td>'+pxEsc(c.orderNo||'')+'</td><td><b>'+pxEsc(c.customer||'')+'</b></td><td>'+pxEsc(c.address||s.address||'')+'</td><td>'+pxEsc(c.city||s.city||'')+'</td><td>'+pxEsc(c.state||s.state||'')+'</td><td>'+pxEsc(c.su||'')+'</td><td>'+(c.value ? money(pxArchNum(c.value)) : '')+'</td><td>'+pxEsc(c.salesRep||'')+'</td><td>'+pxEsc([pxArchDate(s.date), pxArchTime(s.time)].filter(Boolean).join(' '))+'</td></tr>'; }).join('')
+          + '</tbody></table>'
+          + '<div class="ar-acts"><button class="btn ghost small arch-bol" data-id="'+pxEsc(it.id)+'" type="button">BOL / rate sheet</button> <button class="btn ghost small arch-hist" data-id="'+pxEsc(it.id)+'" type="button">'+(pxArchUI.hist[it.id]?'Hide history':'History')+'</button></div>'
+          + (pxArchUI.hist[it.id] ? '<div class="ar-hist">'+(((it.load.events||[]).map(function(ev){ return '<div>'+new Date(ev.ts).toLocaleString()+' — '+pxEsc(ev.label)+'</div>'; }).join('')) || 'No history recorded.')+'</div>' : '');
+      }
+      h += '</div>';
+    });
+    box.innerHTML = h;
   }
   document.getElementById('pxArchSearch').addEventListener('input', pxRenderArchive);
+  document.getElementById('pxArchMonth').addEventListener('change', function(e){ pxArchUI.month = e.target.value; pxRenderArchive(); });
   document.getElementById('pxArchList').addEventListener('click', function(e){
+    var hd = e.target.closest('[data-ar]');
+    if(hd){ var k = hd.getAttribute('data-ar'); pxArchUI.open[k] = !pxArchUI.open[k]; pxRenderArchive(); return; }
     var b = e.target.closest('button'); if(!b) return;
-    var id = b.getAttribute('data-id'), a = pxArchiveEntries().find(function(x){ return String(x.load.id)===id; }); if(!a) return;
-    if(b.classList.contains('arch-hist')){ pxArchOpen[id] = !pxArchOpen[id]; pxRenderArchive(); return; }
+    var id = b.getAttribute('data-id'), a = pxArchAllEntries().find(function(x){ return String(x.load.id)===id; }); if(!a) return;
+    if(b.classList.contains('arch-hist')){ pxArchUI.hist[id] = !pxArchUI.hist[id]; pxRenderArchive(); return; }
     if(b.classList.contains('arch-bol')){
       var l = Object.assign({}, a.load); l.__archivedOrders = a.orders;
       openBOL(l, {carrier:true});
@@ -10477,6 +10653,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         PX.db.collection('archive').onSnapshot(function(snap){
           PX.archive = snap.docs.map(function(d){ try{ var x = JSON.parse(d.data().json); x.load.__fromArchive = true; return x; }catch(e){ return null; } }).filter(Boolean);
           try{ pxRenderArchive(); }catch(e){}
+          try{ if(window.__pxWbArchRefresh) window.__pxWbArchRefresh(); }catch(e){}
         }, function(){});
         PX.db.collection('formRequests').onSnapshot(function(snap){ pxSyncFormRequests(snap.docs.map(function(d){ return d.data(); })); }, function(){});
         PX.db.collection('reqStatus').onSnapshot(function(snap){
