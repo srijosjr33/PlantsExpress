@@ -591,6 +591,38 @@
   .drv-adm{width:100%;border-collapse:collapse;font-size:13px;} .drv-adm th{text-align:left;font-size:11px;letter-spacing:.04em;color:var(--text-dim);padding:6px 8px;border-bottom:1px solid var(--panel-2);} .drv-adm td{padding:7px 8px;border-bottom:1px solid var(--panel-2);vertical-align:middle;}
   .drv-ok{color:#97C459;font-weight:700;} .drv-no{color:var(--text-dim);}
   @media (max-width:640px){ #bolView .bol-actions, #bolView #bolCloseBtn{position:sticky;top:0;} }
+
+  /* Phone: Carrier + Driver share one dropdown on the front page */
+  .hm-combo{display:none;}
+  .hm-menu{position:absolute;z-index:500;background:#2C2C2A;border:1.5px solid #E24B4A;border-radius:14px;padding:6px;width:280px;box-shadow:0 8px 24px rgba(0,0,0,.45);}
+  .hm-menu a{display:block;padding:11px 12px;border-radius:10px;color:#F1EFE8;text-decoration:none;font-weight:700;font-size:15px;}
+  .hm-menu a:hover,.hm-menu a:active{background:#444441;}
+  .hm-menu a small{display:block;font-weight:400;font-size:12px;color:#B4B2A9;margin-top:2px;}
+  @media (max-width:640px){
+    #homeTabs button[data-home="carrier"], #homeTabs button[data-home="driver"]{display:none !important;}
+    .hm-combo{display:inline-block;font-family:'Roboto',sans-serif;font-size:14px;font-weight:600;border:1.5px solid #E24B4A;border-radius:999px;background:#444441;color:#D3D1C7;padding:7px 16px;cursor:pointer;user-select:none;}
+    .hm-combo.active{background:#97C459;color:#173404;}
+    .hm-combo b{font-size:11px;margin-left:2px;}
+  }
+  #pxDrvBox select{width:100%;}
+
+  .drv-stat{margin-top:10px;border-top:1.5px solid #B4B2A9;padding-top:10px;}
+  .drv-now{display:flex;align-items:center;gap:10px;margin-bottom:6px;} .drv-now span{font-size:10.5px;color:#6B6558;letter-spacing:.05em;font-weight:700;width:88px;} .drv-now b{font-size:16px;color:#0C447C;}
+  .drv-lab{font-size:12px;font-weight:700;color:#5F5E5A;margin:8px 0 5px;}
+  .drv-bs{display:flex;flex-wrap:wrap;gap:6px;}
+  .drv-b{flex:1 1 auto;min-width:88px;background:#fff;color:#1a1a1a;border:1.5px solid #888780;border-radius:10px;padding:11px 8px;font:700 14px Roboto,Arial,sans-serif;cursor:pointer;}
+  .drv-b.on{background:#97C459;border-color:#3B6D11;color:#173404;}
+  .drv-min .drv-b{min-width:64px;padding:9px 6px;font-size:13.5px;}
+  .drv-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#173404;color:#EAF3DE;border:1.5px solid #97C459;border-radius:999px;padding:10px 16px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:600;max-width:92vw;text-align:center;}
+  .drv-toast.on{opacity:1;}
+
+  /* delivery status alerts */
+  .sa-box{position:fixed;top:14px;right:14px;z-index:99997;display:flex;flex-direction:column;gap:8px;width:min(340px,92vw);}
+  @media (max-width:640px){ .sa-box{top:auto;bottom:14px;right:50%;transform:translateX(50%);} }
+  .sa-t{position:relative;background:#F6F3EA;color:#1a1a1a;border:2px solid #378ADD;border-left-width:7px;border-radius:12px;padding:10px 34px 10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45);font:500 13px/1.35 Roboto,system-ui,sans-serif;}
+  .sa-h{font-weight:700;font-size:14px;color:#0C447C;} .sa-h.late{color:#A32D2D;} .sa-h.done{color:#27500A;}
+  .sa-now{font-size:16px;font-weight:700;margin-top:3px;} .sa-was{color:#5F5E5A;font-size:12.5px;} .sa-by{color:#5F5E5A;font-size:12px;margin-top:2px;}
+  .sa-x{position:absolute;top:4px;right:8px;background:none;border:0;font-size:20px;color:#5F5E5A;cursor:pointer;line-height:1;}
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -624,6 +656,7 @@
       <button type="button" data-home="dispatcher">Dispatcher</button>
       <button type="button" data-home="carrier">Carrier</button>
       <button type="button" data-home="driver">Driver</button>
+      <span class="hm-combo" id="hmCombo" role="button" tabindex="0" aria-haspopup="true">Carrier / Driver <b>▾</b></span>
       <button type="button" data-home="admin">Admin</button>
       <button type="button" data-home="manager">Manager</button>
     </div>
@@ -903,6 +936,7 @@
         </div>
       </div>
     </div>
+    <div class="hm-menu hidden" id="hmMenu"><a href="#" data-pick="carrier">🚚 Carrier<small>Company sign in — post trucks, claim loads</small></a><a href="#" data-pick="driver">🪪 Driver<small>See my upcoming loads and stop times</small></a></div>
     <div id="homeDriver" class="hidden"><div id="pxDrvBox" class="drv-wrap"></div></div>
     <div id="homePender" class="hidden">
       <div class="navtabs hidden" id="penderSubTabs" style="margin-top:14px;">
@@ -7199,6 +7233,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     try{ document.body.className = document.body.className.replace(/\bbg-[a-z]+\b/g,'').trim(); document.body.classList.add('bg-'+which); }catch(e){}
     window.__pxHomeTab = which;
     document.querySelectorAll('#homeTabs button').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-home')===which); });
+    try{ var hc = document.getElementById('hmCombo'); hc.classList.toggle('active', which==='carrier' || which==='driver'); hc.innerHTML = (which==='carrier' ? 'Carrier' : which==='driver' ? 'Driver' : 'Carrier / Driver')+' <b>▾</b>'; }catch(e){}
     var loginRole = PX_LOGIN_ROLE[which];
     document.getElementById('homeFreight').classList.toggle('hidden', !loginRole);
     if(loginRole){
@@ -7226,6 +7261,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var role = TAB_ROLE[tab], saved = role && readSessions()[role];
     if(saved){ session = saved; rememberMember(session.role, session.name, session.contactName); enterApp(); }
   }); });
+  (function(){
+    var hc = document.getElementById('hmCombo'), hm = document.getElementById('hmMenu');
+    var place = function(){ var r = hc.getBoundingClientRect(); hm.style.top = (r.bottom + window.scrollY + 6)+'px'; hm.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 290))+'px'; };
+    var toggle = function(ev){ ev.preventDefault(); ev.stopPropagation(); if(hm.classList.contains('hidden')){ place(); hm.classList.remove('hidden'); } else hm.classList.add('hidden'); };
+    hc.addEventListener('click', toggle); hc.addEventListener('keydown', function(ev){ if(ev.key==='Enter' || ev.key===' ') toggle(ev); });
+    hm.addEventListener('click', function(ev){ var a = ev.target.closest('[data-pick]'); if(!a) return; ev.preventDefault(); hm.classList.add('hidden');
+      var b = document.querySelector('#homeTabs button[data-home="'+a.getAttribute('data-pick')+'"]'); if(b) b.click(); });
+    document.addEventListener('click', function(ev){ if(!hm.classList.contains('hidden') && !hm.contains(ev.target) && ev.target!==hc) hm.classList.add('hidden'); });
+  })();
   document.getElementById('pxRepBtn').addEventListener('click', pxRepLogin);
   document.getElementById('pxRepPass').addEventListener('keydown', function(e){ if(e.key==='Enter') pxRepLogin(); });
   document.getElementById('pxRepName').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('pxRepPass').focus(); });
@@ -7973,7 +8017,31 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       try{ pxDrvAdminRender(); }catch(e){}
       try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
     }, function(){});
+    PX.db.collection('loadStatus').onSnapshot(function(snap){
+      var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); }); PXDRV.ls = m;
+      try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
+    }, function(){});
   })();
+  function pxDrvState(l, me){   // the newest status: what dispatch has, or a newer update from this carrier/driver
+    var d = (PXDRV.ls||{})[String(l.id)];
+    if(d && (d.at||0) > (l.carrierStatusAt||0) && String(d.by||'').toLowerCase()===String(me.carrier||'').toLowerCase())
+      return {status:d.status||l.status, deliveryStage:d.deliveryStage||l.deliveryStage, timing:d.timing||null};
+    return {status:l.status, deliveryStage:l.deliveryStage, timing:l.timing||null};
+  }
+  function pxDrvSend(l, me, patch){
+    var cur = pxDrvState(l, me), nl = Object.assign({}, l, cur, patch);
+    var data = {status:nl.status, deliveryStage:nl.deliveryStage||'', timing:nl.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', equip:l.equip||'',
+      statusText: nl.status==='claimed' ? loadStatusLabel(nl) : statusLabel(nl.status),
+      locked: !!(nl.status==='completed' || (nl.status==='claimed' && LOCKED_STAGES[nl.deliveryStage])), by:me.carrier, driver:me.name, at:Date.now()};
+    PXDRV.ls = PXDRV.ls || {}; PXDRV.ls[String(l.id)] = data;
+    var box = document.getElementById('pxDrvBox'); if(box) box.__h = null;
+    pxDrvShow();
+    var t = document.getElementById('pxDrvToast');
+    if(!PX.db){ if(t){ t.textContent = 'Not connected — try again.'; t.classList.add('on'); } return; }
+    PX.db.collection('loadStatus').doc(String(l.id)).set(data).then(function(){
+      var t2 = document.getElementById('pxDrvToast'); if(t2){ t2.textContent = '✓ Sent to dispatch: '+data.statusText; t2.classList.add('on'); clearTimeout(PXDRV.tt); PXDRV.tt = setTimeout(function(){ t2.classList.remove('on'); }, 3500); }
+    }).catch(function(){ alert('Could not send — check your signal and try again.'); });
+  }
   function pxDrvSaved(){ try{ return JSON.parse(localStorage.getItem('px-driver')||'null'); }catch(e){ return null; } }
   function pxDrvLoads(me){
     var out = [], car = String(me.carrier||'').trim().toLowerCase(), nm = String(me.name||'').trim().toLowerCase();
@@ -7984,6 +8052,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(String(l.claimedBy||'').trim().toLowerCase()!==car || String(l.driverName||'').trim().toLowerCase()!==nm) return;
       out.push(l);
     });
+    out = out.filter(function(l){ var st = pxDrvState(l, me).status; return st!=='completed' && st!=='canceled'; });
     var k = function(l){ var p = (l.stops||[]).find(function(s){ return s.type==='pickup'; }) || (l.stops||[])[0] || {}; return (p.date||'9999')+' '+(p.time||''); };
     return out.sort(function(a,b){ return k(a).localeCompare(k(b)); });
   }
@@ -7999,15 +8068,18 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var e = pxEsc, me = pxDrvSaved();
     if(me && PXDRV.pinsReady){ var pin = PXDRV.pins[me.key]; if(!pin || pin.hash!==me.hash){ try{ localStorage.removeItem('px-driver'); }catch(x){} me = null; } }
     if(!me){
-      if(box.getAttribute('data-mode')==='login') return;
+      if(box.getAttribute('data-mode')==='login'){ pxDrvFillSel(); return; }
       box.setAttribute('data-mode','login'); box.__h = null;
       box.innerHTML = '<div class="login-card drv-card"><div class="section-title">Driver sign in</div>'
-        + '<div class="field"><label for="pxDrvName">Your name</label><input id="pxDrvName" autocomplete="name" placeholder="e.g. Brandon"></div>'
+        + '<div class="field"><label for="pxDrvCar">Carrier</label><select id="pxDrvCar"><option value="">Choose your carrier…</option></select></div>'
+        + '<div class="field"><label for="pxDrvName">Driver</label><select id="pxDrvName" disabled><option value="">Choose the carrier first</option></select></div>'
         + '<div class="field"><label for="pxDrvPin">4-digit PIN</label><input id="pxDrvPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••"></div>'
         + '<button class="btn primary" id="pxDrvGo" type="button" style="width:100%;">See my loads</button>'
         + '<div id="pxDrvErr" style="color:var(--danger);font-size:13px;margin-top:8px;text-align:center;"></div>'
         + '<div class="login-hint">Don’t have a PIN? Ask the Plants Express office.</div></div>';
       document.getElementById('pxDrvGo').addEventListener('click', pxDrvLogin);
+      document.getElementById('pxDrvCar').addEventListener('change', function(){ pxDrvFillSel(true); });
+      pxDrvFillSel();
       document.getElementById('pxDrvPin').addEventListener('keydown', function(ev){ if(ev.key==='Enter') pxDrvLogin(); });
       return;
     }
@@ -8023,7 +8095,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var dTxt = dd.length ? (function(){ var f = pxDrvWhen({date:dd[0]}), t = pxDrvWhen({date:dd[dd.length-1]}); return f===t ? f : f+' – '+t; })() : '—';
       var cities = dels.map(function(s){ return s.city; }).filter(Boolean);
       h += '<div class="drv-load">'
-        + '<div class="drv-l1"><b>'+e(pxLoadNo(l.ref))+'</b><span class="drv-chip">'+e((function(){ try{ var x = loadStatusLabel(l); return (x && x.indexOf('undefined')<0) ? x : 'Assigned to you'; }catch(z){ return 'Assigned to you'; } })())+'</span></div>'
+        + '<div class="drv-l1"><b>'+e(pxLoadNo(l.ref))+'</b><span class="drv-chip">'+e((function(){ try{ var x = loadStatusLabel(Object.assign({}, l, pxDrvState(l, me))); return (x && x.indexOf('undefined')<0) ? x : 'Assigned to you'; }catch(z){ return 'Assigned to you'; } })())+'</span></div>'
         + '<div class="drv-row"><span>LOADING</span>'+e(pxDrvWhen(pick)||'—')+(pick.city ? '<div class="drv-sub">'+e([pick.company, pick.city].filter(Boolean).join(' · '))+'</div>' : '')+'</div>'
         + '<div class="drv-row"><span>DELIVERING</span>'+e(dTxt)+'</div>'
         + ((l.equip || l.vehicleNo) ? '<div class="drv-row"><span>TRUCK</span>'+e(l.equip||'')+(l.vehicleNo ? ' #'+e(l.vehicleNo) : '')+'</div>' : '')
@@ -8031,23 +8103,70 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
             var w = pxDrvWhen(s), parts = w.split(' · ');
             return '<div class="drv-stop"><div class="drv-sn">'+(i+1)+'</div><div class="drv-st"><b>'+e(parts[1] || 'No time set')+'</b><small>'+e(parts[0]||'')+'</small></div>'
               + '<div class="drv-sw"><b>'+e(s.company||s.name||'Stop '+(i+1))+'</b>'+(s.type==='pickup' ? ' <i>PICKUP</i>' : '')+'<small>'+e([s.city, s.state].filter(Boolean).join(', '))+'</small></div></div>';
-          }).join('')+'</div></div>';
+          }).join('')+'</div>'
+        + (function(){
+            var cs = pxDrvState(l, me), stg = cs.deliveryStage==='out_for_delivery' ? 'in_route' : (cs.deliveryStage||'claimed'), tm = cs.timing||{}, lbl = cs.status==='claimed' ? loadStatusLabel(Object.assign({}, l, cs)) : statusLabel(cs.status);
+            var b = function(attr, v, on, txt){ return '<button type="button" class="drv-b'+(on?' on':'')+'" data-'+attr+'="'+v+'" data-l="'+e(l.id)+'">'+txt+'</button>'; };
+            var x = '<div class="drv-stat"><div class="drv-now"><span>STATUS</span><b>'+e(lbl)+'</b></div>'
+              + '<div class="drv-lab">Where are you?</div><div class="drv-bs">'+b('dst','on_site', stg==='on_site', '📍 On site')+b('dst','completed', false, '✅ Completed')+'</div>'
+              + '<div class="drv-lab">Running on time?</div><div class="drv-bs">'+b('dtm','on_time', tm.state==='on_time', 'On time')+b('dtm','ahead', tm.state==='ahead', 'Running early')+b('dtm','delayed', tm.state==='delayed', 'Delayed')+'</div>';
+            if(tm.state==='delayed') x += '<div class="drv-lab">How late?</div><div class="drv-bs drv-min">'+[15,30,45,60,90,120].map(function(m){ return b('dmin', m, parseInt(tm.minutes,10)===m, m>=60 ? (m/60)+(m===60?' hr':' hrs') : m+' min'); }).join('')+'</div>';
+            return x + '</div>';
+          })()
+        + '</div>';
     });
+    h += '<div class="drv-toast" id="pxDrvToast"></div>';
     if(box.__h===h && box.getAttribute('data-mode')==='loads') return;
     box.setAttribute('data-mode','loads'); box.__h = h; box.innerHTML = h;
     document.getElementById('pxDrvOut').addEventListener('click', function(){ try{ localStorage.removeItem('px-driver'); }catch(x){} box.removeAttribute('data-mode'); box.__h = null; pxDrvShow(); });
   }
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('#pxDrvBox [data-dst], #pxDrvBox [data-dtm], #pxDrvBox [data-dmin]'); if(!b) return;
+    var me = pxDrvSaved(); if(!me) return;
+    var l = pxDrvLoads(me).find(function(x){ return String(x.id)===b.getAttribute('data-l'); }); if(!l) return;
+    var who = {by:me.name, at:Date.now()};
+    if(b.hasAttribute('data-dst')){
+      var v = b.getAttribute('data-dst');
+      if(v==='completed'){ if(!confirm('Mark load '+pxLoadNo(l.ref)+' as COMPLETED? It will leave your list.')) return; pxDrvSend(l, me, {status:'completed'}); return; }
+      pxDrvSend(l, me, {status:'claimed', deliveryStage:v}); return;
+    }
+    if(b.hasAttribute('data-dtm')){
+      var st = b.getAttribute('data-dtm'), cur = pxDrvState(l, me).timing || {};
+      pxDrvSend(l, me, {timing: Object.assign({state:st, minutes: st==='delayed' ? (cur.minutes||'') : ''}, who)}); return;
+    }
+    pxDrvSend(l, me, {timing: Object.assign({state:'delayed', minutes: parseInt(b.getAttribute('data-dmin'),10)}, who)});
+  });
+  function pxDrvPinned(){   // carriers with at least one driver who has a PIN
+    var out = [];
+    pxDrvCarriers().forEach(function(a){
+      var ds = (a.drivers||[]).filter(function(d){ return d && d.name && PXDRV.pins[pxDrvKey(a.id, d.name)]; });
+      if(ds.length) out.push({acct:a, drivers:ds});
+    });
+    return out.sort(function(x,y){ return String(x.acct.name).localeCompare(String(y.acct.name)); });
+  }
+  function pxDrvFillSel(carChanged){
+    var cs = document.getElementById('pxDrvCar'), ds = document.getElementById('pxDrvName'); if(!cs || !ds) return;
+    var list = pxDrvPinned(), e = pxEsc, cv = cs.value;
+    var co = '<option value="">'+((PXDRV.pinsReady && PXS.ready) ? 'Choose your carrier…' : 'Loading…')+'</option>' + list.map(function(x){ return '<option value="'+e(x.acct.id)+'">'+e(x.acct.name)+'</option>'; }).join('');
+    if(cs.__o!==co){ cs.__o = co; cs.innerHTML = co; if(list.some(function(x){ return x.acct.id===cv; })) cs.value = cv; else if(list.length===1) cs.value = list[0].acct.id; }
+    var pick = list.find(function(x){ return x.acct.id===cs.value; }), dv = carChanged ? '' : ds.value;
+    var dO = pick ? '<option value="">Choose your name…</option>' + pick.drivers.map(function(d){ return '<option value="'+e(d.name)+'">'+e(d.name)+'</option>'; }).join('') : '<option value="">Choose the carrier first</option>';
+    if(ds.__o!==dO){ ds.__o = dO; ds.innerHTML = dO; if(pick && pick.drivers.some(function(d){ return d.name===dv; })) ds.value = dv; }
+    ds.disabled = !pick;
+  }
   function pxDrvLogin(){
-    var nm = (document.getElementById('pxDrvName').value||'').trim(), pin = (document.getElementById('pxDrvPin').value||'').trim(), err = document.getElementById('pxDrvErr');
+    var car = document.getElementById('pxDrvCar').value, nm = (document.getElementById('pxDrvName').value||'').trim(), pin = (document.getElementById('pxDrvPin').value||'').trim(), err = document.getElementById('pxDrvErr');
     err.textContent = '';
-    if(!nm || !/^\d{4}$/.test(pin)){ err.textContent = 'Type your name and your 4-digit PIN.'; return; }
+    if(!car){ err.textContent = 'Choose your carrier.'; return; }
+    if(!nm){ err.textContent = 'Choose your name.'; return; }
+    if(!/^\d{4}$/.test(pin)){ err.textContent = 'Type your 4-digit PIN.'; return; }
     if(!PXDRV.pinsReady || !PXS.ready){ err.textContent = 'Still connecting — try again in a few seconds.'; return; }
     var cands = [];
-    pxDrvCarriers().forEach(function(a){ (a.drivers||[]).forEach(function(d){ if(d && String(d.name||'').trim().toLowerCase()===nm.toLowerCase()){ var k = pxDrvKey(a.id, d.name); if(PXDRV.pins[k]) cands.push({key:k, acct:a, d:d, pin:PXDRV.pins[k]}); } }); });
+    pxDrvCarriers().filter(function(a){ return a.id===car; }).forEach(function(a){ (a.drivers||[]).forEach(function(d){ if(d && String(d.name||'').trim().toLowerCase()===nm.toLowerCase()){ var k = pxDrvKey(a.id, d.name); if(PXDRV.pins[k]) cands.push({key:k, acct:a, d:d, pin:PXDRV.pins[k]}); } }); });
     if(!cands.length){ err.textContent = 'No PIN is set up for that name yet. Ask the Plants Express office.'; return; }
     Promise.all(cands.map(function(c){ return pxHash(c.pin.salt, pin).then(function(h){ return h===c.pin.hash ? c : null; }); })).then(function(r){
       var hit = r.filter(Boolean)[0];
-      if(!hit){ err.textContent = 'That name and PIN don’t match.'; return; }
+      if(!hit){ err.textContent = 'Wrong PIN. Try again or ask the office.'; return; }
       try{ localStorage.setItem('px-driver', JSON.stringify({key:hit.key, name:hit.d.name, carrier:hit.acct.name, hash:hit.pin.hash})); }catch(x){}
       pxDrvShow();
     });
@@ -9029,7 +9148,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if((l.vehicleNo||'')!==pxceWas.v) pxceMsg.push('vehicle '+(pxceWas.v||'(none)')+' \u2192 '+(l.vehicleNo||'(none)'));
       if((l.equip||'')!==pxceWas.e) pxceMsg.push('equipment '+(pxceWas.e||'(none)')+' \u2192 '+(l.equip||''));
       if(pxceMsg.length){ try{ addEvent(l, (d.by||'Carrier')+' changed '+pxceMsg.join(', ')); }catch(e){} changed = true; try{ if(typeof pxbToast==='function') pxbToast('<div style="font-weight:700;font-size:14.5px;margin-bottom:3px;">\ud83d\ude9a '+pxEsc(pxLoadNo(l.ref))+' \u2014 carrier update</div><div><b>'+pxEsc(d.by||'Carrier')+'</b> changed '+pxEsc(pxceMsg.join(', '))+'.</div>'); }catch(e){} }
-      if(JSON.stringify([l.status, l.deliveryStage, l.timing])!==before){ try{ addEvent(l, (d.by||'Carrier')+' updated: '+(d.statusText||'')); }catch(e){} changed = true; }
+      if(JSON.stringify([l.status, l.deliveryStage, l.timing])!==before){ try{ addEvent(l, (d.by||'Carrier')+(d.driver ? ' (driver '+d.driver+')' : '')+' updated: '+(d.statusText||'')); }catch(e){} changed = true; }
     });
     if(changed){ persistData(); try{ renderAll(); }catch(e){} }
   }
@@ -9476,6 +9595,56 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     PXB.toasts.appendChild(t);
     setTimeout(function(){ try{ t.remove(); }catch(e){} }, 60000);
   }
+  /* ===== Delivery status alerts: everyone watching a load gets a pop-up when its status or timing changes ===== */
+  var PXSA = {prev:null};
+  function pxSaToast(html){
+    if(!PXSA.box){ PXSA.box = document.createElement('div'); PXSA.box.className = 'sa-box'; document.body.appendChild(PXSA.box); }
+    var t = document.createElement('div'); t.className = 'sa-t';
+    t.innerHTML = html + '<button type="button" class="sa-x" aria-label="Close">×</button>';
+    t.querySelector('.sa-x').addEventListener('click', function(){ t.remove(); });
+    PXSA.box.insertBefore(t, PXSA.box.firstChild);
+    while(PXSA.box.children.length > 5) PXSA.box.lastChild.remove();
+    setTimeout(function(){ try{ t.remove(); }catch(e){} }, 10*60000);
+  }
+  function pxSaAudience(){
+    var who = {all:false, pender:false, carrier:null};
+    try{ if(session && session.role==='dispatcher') who.all = true; }catch(e){}
+    try{ if(session && session.role==='carrier') who.carrier = pxMyNames('carrier').map(function(n){ return String(n).toLowerCase(); }); }catch(e){}
+    try{ if(PX.wb) who.pender = true; }catch(e){}
+    return who;
+  }
+  function pxSaCheck(){
+    if(typeof PXB==='undefined' || !PXB.ready) return;
+    var who = pxSaAudience(), now = {}, info = {};
+    Object.keys(PXB.docs||{}).forEach(function(id){
+      var l; try{ l = JSON.parse(PXB.docs[id].json); }catch(e){ return; }
+      if(!l || (l.status!=='claimed' && l.status!=='completed')) return;
+      var d = (PXDRV.ls||{})[String(l.id)], src = null, m = l;
+      if(d && (d.at||0) > (l.carrierStatusAt||0) && String(d.by||'').toLowerCase()===String(l.claimedBy||'').toLowerCase() && l.status!=='completed'){
+        m = Object.assign({}, l, {status:d.status||l.status, deliveryStage:d.deliveryStage||l.deliveryStage, timing:d.timing||null}); src = d;
+      }
+      var lbl = m.status==='completed' ? 'Completed' : loadStatusLabel(m);
+      now[l.id] = lbl; info[l.id] = {l:l, src:src};
+    });
+    var prev = PXSA.prev; PXSA.prev = now;
+    if(!prev) return;   // first look: just remember
+    Object.keys(now).forEach(function(id){
+      if(!(id in prev) || prev[id]===now[id]) return;
+      var l = info[id].l, src = info[id].src;
+      var mine = who.all || (who.pender && l.isPender) || (who.carrier && who.carrier.indexOf(String(l.claimedBy||'').toLowerCase())>-1);
+      if(!mine) return;
+      var by = src ? (src.driver ? 'Driver '+src.driver+' ('+(src.by||'')+')' : (src.by||'Carrier')) : '';
+      if(!by){ var ev = (l.events||[])[(l.events||[]).length-1]; if(ev && ev.label) by = String(ev.label).split(/ updated| set | marked| changed/)[0]; }
+      // don't alert the person who made the change
+      try{ if(session && by && String(by).toLowerCase().indexOf(String(session.name||'').toLowerCase())===0 && session.name) return; }catch(e){}
+      var late = /Delayed/.test(now[id]), done = now[id]==='Completed';
+      pxSaToast('<div class="sa-h'+(late?' late':done?' done':'')+'">'+(late?'⏱️':done?'✅':'🚚')+' '+pxEsc(pxLoadNo(l.ref))+' · '+pxEsc(l.claimedBy||'')+'</div>'
+        + '<div class="sa-now">'+pxEsc(now[id])+'</div>'
+        + '<div class="sa-was">Was: '+pxEsc(prev[id])+'</div>'
+        + '<div class="sa-by">'+(by ? pxEsc(by)+' · ' : '')+new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})+'</div>');
+    });
+  }
+  setInterval(function(){ try{ pxSaCheck(); }catch(e){} }, 3000);
   function pxbEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   /* --- dispatcher: send local load changes to the shared board --- */
