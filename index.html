@@ -571,6 +571,26 @@
   #pxArchList .ar-acts{padding:8px 14px;display:flex;gap:8px;}
   #pxArchList .ar-acts .btn{color:#1a1a1a;border-color:#888780;}
   #pxArchList .ar-hist{padding:0 14px 10px;font-size:12px;}
+
+  /* Driver tab */
+  .drv-wrap{max-width:560px;margin:18px auto 40px;padding:0 12px;}
+  .drv-card{margin:0 auto;}
+  .drv-top{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel);border:1.5px solid #E24B4A;border-radius:14px;padding:12px 14px;margin-bottom:12px;}
+  .drv-hi{font-size:19px;font-weight:700;} .drv-co{font-size:12.5px;color:var(--text-dim);}
+  .drv-h{display:flex;justify-content:space-between;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:6px 2px 8px;}
+  .drv-empty{color:var(--text-dim);text-align:center;padding:22px;border:1px dashed var(--text-dim);border-radius:12px;}
+  .drv-load{display:block;width:100%;text-align:left;box-sizing:border-box;background:#EDE7D6;color:#1a1a1a;border:2px solid #B4B2A9;border-left:6px solid #378ADD;border-radius:12px;padding:12px 14px;margin-bottom:10px;font:inherit;cursor:pointer;}
+  .drv-l1{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;} .drv-l1 b{font-size:18px;}
+  .drv-chip{font-size:12px;font-weight:700;background:#E6F1FB;color:#0C447C;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+  .drv-row{font-size:15px;font-weight:600;padding:3px 0;} .drv-row span{display:inline-block;width:98px;font-size:10.5px;color:#6B6558;letter-spacing:.05em;font-weight:700;}
+  .drv-sub{margin-left:98px;font-size:13px;font-weight:500;color:#444441;} .drv-stops{margin-top:10px;border-top:1.5px solid #B4B2A9;padding-top:6px;}
+  .drv-stop{display:grid;grid-template-columns:26px 92px 1fr;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid #D3D1C7;} .drv-stop:last-child{border-bottom:0;}
+  .drv-sn{width:24px;height:24px;border-radius:50%;background:#2C2C2A;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+  .drv-st b{display:block;font-size:16px;} .drv-st small,.drv-sw small{display:block;font-size:12.5px;color:#5F5E5A;font-weight:500;}
+  .drv-sw b{font-size:15px;} .drv-sw i{font-style:normal;font-size:10px;font-weight:700;background:#E24B4A;color:#fff;border-radius:999px;padding:1px 7px;vertical-align:middle;}
+  .drv-adm{width:100%;border-collapse:collapse;font-size:13px;} .drv-adm th{text-align:left;font-size:11px;letter-spacing:.04em;color:var(--text-dim);padding:6px 8px;border-bottom:1px solid var(--panel-2);} .drv-adm td{padding:7px 8px;border-bottom:1px solid var(--panel-2);vertical-align:middle;}
+  .drv-ok{color:#97C459;font-weight:700;} .drv-no{color:var(--text-dim);}
+  @media (max-width:640px){ #bolView .bol-actions, #bolView #bolCloseBtn{position:sticky;top:0;} }
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -603,6 +623,7 @@
       <button type="button" data-home="pender">Pender Nursery</button>
       <button type="button" data-home="dispatcher">Dispatcher</button>
       <button type="button" data-home="carrier">Carrier</button>
+      <button type="button" data-home="driver">Driver</button>
       <button type="button" data-home="admin">Admin</button>
       <button type="button" data-home="manager">Manager</button>
     </div>
@@ -728,6 +749,7 @@
           <button type="button" data-admtab="admins" id="pxAdmAdminsTabBtn">Admins</button>
           <button type="button" data-admtab="managers" id="pxAdmManagersTabBtn">Managers</button>
           <button type="button" data-admtab="directory">Directory</button>
+          <button type="button" data-admtab="driverpins">Driver PINs</button>
           <button type="button" data-admtab="zones">Freight zones</button>
           <button type="button" data-admtab="sgoals">Sales goals</button>
           <button type="button" data-admtab="archive">Archive</button>
@@ -841,6 +863,11 @@
           <div id="pxAdmAdmins"></div>
         </div>
 
+        <div class="panel panel-pad" data-admpanel="driverpins">
+          <div class="section-title">Driver PINs</div>
+          <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Give a driver a 4-digit PIN so they can open the <b>Driver</b> tab on their phone, sign in with their name and PIN, and see every upcoming load assigned to them, with the time for each stop. Drivers come from each carrier’s profile. PINs are stored scrambled, so they can’t be looked up — only changed or turned off.</div>
+          <div id="pxAdmDrivers" style="overflow-x:auto;"></div>
+        </div>
         <div class="panel panel-pad" data-admpanel="directory">
           <div class="section-title">Directory</div>
           <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Add companies and contacts by hand. Click Edit to update an entry or Remove to delete it.</div>
@@ -876,6 +903,7 @@
         </div>
       </div>
     </div>
+    <div id="homeDriver" class="hidden"><div id="pxDrvBox" class="drv-wrap"></div></div>
     <div id="homePender" class="hidden">
       <div class="navtabs hidden" id="penderSubTabs" style="margin-top:14px;">
         <button type="button" data-psub="workbook" class="active">Workbook</button>
@@ -7183,6 +7211,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(which==='freight') document.getElementById('loginHint').textContent = 'Sign in with your company name and password. New companies register first.';
     }
     document.getElementById('homePender').classList.toggle('hidden', which!=='pender');
+    document.getElementById('homeDriver').classList.toggle('hidden', which!=='driver'); if(which==='driver'){ try{ pxDrvShow(); }catch(e){} }
     if(which==='admin' || which==='manager') window.__pxAdmMode = which;
     if(which==='admin') window.__pxViaManager = false;
     document.getElementById('homeAdmin').classList.toggle('hidden', which!=='admin' && which!=='manager');
@@ -7931,6 +7960,133 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<button class="btn ghost small adm-edit" data-kind="'+kind+'" data-id="'+pxEsc(x.id)+'" type="button">Edit</button> '+
         '<button class="btn ghost small adm-remove" data-kind="'+kind+'" data-id="'+pxEsc(x.id)+'" type="button">Remove</button></td></tr>'; }).join('')+'</tbody></table></div>';
   }
+  /* ===== Drivers: sign in with name + PIN, see upcoming loads, open the BOL ===== */
+  var PXDRV = {pins:{}, pinsReady:false, me:null};
+  function pxDrvKey(acctId, name){ return String(acctId)+'|'+String(name||'').trim().toLowerCase(); }
+  function pxDrvCarriers(){ return (PXS.accounts||[]).filter(function(a){ return a.role==='carrier' && a.registered && a.status!=='rejected'; }); }
+  (function pxDrvWatch(){
+    if(!PX.db){ if(!PX.__drvTries || PX.__drvTries++ < 60){ PX.__drvTries = PX.__drvTries||1; setTimeout(pxDrvWatch, 500); } return; }
+    PX.db.collection('settings').onSnapshot(function(snap){
+      var d = snap.docs.find(function(x){ return x.id==='driverPins'; });
+      PXDRV.pins = (d && d.data().pins) || {}; PXDRV.pinsReady = true;
+      try{ pxDrvAdminRender(); }catch(e){}
+      try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
+    }, function(){});
+  })();
+  function pxDrvSaved(){ try{ return JSON.parse(localStorage.getItem('px-driver')||'null'); }catch(e){ return null; } }
+  function pxDrvLoads(me){
+    var out = [], car = String(me.carrier||'').trim().toLowerCase(), nm = String(me.name||'').trim().toLowerCase();
+    if(typeof PXB==='undefined' || !PXB.docs) return out;
+    Object.keys(PXB.docs).forEach(function(id){
+      var l; try{ l = JSON.parse(PXB.docs[id].json); }catch(e){ return; }
+      if(!l || l.status==='completed' || l.status==='canceled') return;
+      if(String(l.claimedBy||'').trim().toLowerCase()!==car || String(l.driverName||'').trim().toLowerCase()!==nm) return;
+      out.push(l);
+    });
+    var k = function(l){ var p = (l.stops||[]).find(function(s){ return s.type==='pickup'; }) || (l.stops||[])[0] || {}; return (p.date||'9999')+' '+(p.time||''); };
+    return out.sort(function(a,b){ return k(a).localeCompare(k(b)); });
+  }
+  function pxDrvWhen(s){
+    if(!s) return '';
+    var out = '', m = String(s.date||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m){ var d = new Date(+m[1], +m[2]-1, +m[3]); out = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+(+m[2])+'/'+(+m[3]); }
+    if(/^\d{1,2}:\d{2}/.test(s.time||'')){ var p = s.time.split(':'), h = +p[0]; out += (out?' · ':'')+((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
+    return out;
+  }
+  function pxDrvShow(){
+    var box = document.getElementById('pxDrvBox'); if(!box) return;
+    var e = pxEsc, me = pxDrvSaved();
+    if(me && PXDRV.pinsReady){ var pin = PXDRV.pins[me.key]; if(!pin || pin.hash!==me.hash){ try{ localStorage.removeItem('px-driver'); }catch(x){} me = null; } }
+    if(!me){
+      if(box.getAttribute('data-mode')==='login') return;
+      box.setAttribute('data-mode','login'); box.__h = null;
+      box.innerHTML = '<div class="login-card drv-card"><div class="section-title">Driver sign in</div>'
+        + '<div class="field"><label for="pxDrvName">Your name</label><input id="pxDrvName" autocomplete="name" placeholder="e.g. Brandon"></div>'
+        + '<div class="field"><label for="pxDrvPin">4-digit PIN</label><input id="pxDrvPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••"></div>'
+        + '<button class="btn primary" id="pxDrvGo" type="button" style="width:100%;">See my loads</button>'
+        + '<div id="pxDrvErr" style="color:var(--danger);font-size:13px;margin-top:8px;text-align:center;"></div>'
+        + '<div class="login-hint">Don’t have a PIN? Ask the Plants Express office.</div></div>';
+      document.getElementById('pxDrvGo').addEventListener('click', pxDrvLogin);
+      document.getElementById('pxDrvPin').addEventListener('keydown', function(ev){ if(ev.key==='Enter') pxDrvLogin(); });
+      return;
+    }
+    var list = pxDrvLoads(me), ready = typeof PXB!=='undefined' && PXB.ready;
+    var h = '<div class="drv-top"><div><div class="drv-hi">'+e(me.name)+'</div><div class="drv-co">'+e(me.carrier)+'</div></div><button class="btn ghost small" id="pxDrvOut" type="button">Sign out</button></div>'
+      + '<div class="drv-h">My upcoming loads <span>'+(ready ? list.length : '')+'</span></div>';
+    if(!ready) h += '<div class="drv-empty">Loading your loads…</div>';
+    else if(!list.length) h += '<div class="drv-empty">No loads assigned to you right now.</div>';
+    list.forEach(function(l){
+      var st = l.stops||[], pick = st.find(function(s){ return s.type==='pickup'; }) || {};
+      var dels = st.filter(function(s){ return s.type==='delivery' && !s.isReturnStop; });
+      var dd = dels.map(function(s){ return s.date; }).filter(Boolean).sort();
+      var dTxt = dd.length ? (function(){ var f = pxDrvWhen({date:dd[0]}), t = pxDrvWhen({date:dd[dd.length-1]}); return f===t ? f : f+' – '+t; })() : '—';
+      var cities = dels.map(function(s){ return s.city; }).filter(Boolean);
+      h += '<div class="drv-load">'
+        + '<div class="drv-l1"><b>'+e(pxLoadNo(l.ref))+'</b><span class="drv-chip">'+e((function(){ try{ var x = loadStatusLabel(l); return (x && x.indexOf('undefined')<0) ? x : 'Assigned to you'; }catch(z){ return 'Assigned to you'; } })())+'</span></div>'
+        + '<div class="drv-row"><span>LOADING</span>'+e(pxDrvWhen(pick)||'—')+(pick.city ? '<div class="drv-sub">'+e([pick.company, pick.city].filter(Boolean).join(' · '))+'</div>' : '')+'</div>'
+        + '<div class="drv-row"><span>DELIVERING</span>'+e(dTxt)+'</div>'
+        + ((l.equip || l.vehicleNo) ? '<div class="drv-row"><span>TRUCK</span>'+e(l.equip||'')+(l.vehicleNo ? ' #'+e(l.vehicleNo) : '')+'</div>' : '')
+        + '<div class="drv-stops">'+st.filter(function(s){ return s!==pick && !s.isReturnStop; }).map(function(s, i){
+            var w = pxDrvWhen(s), parts = w.split(' · ');
+            return '<div class="drv-stop"><div class="drv-sn">'+(i+1)+'</div><div class="drv-st"><b>'+e(parts[1] || 'No time set')+'</b><small>'+e(parts[0]||'')+'</small></div>'
+              + '<div class="drv-sw"><b>'+e(s.company||s.name||'Stop '+(i+1))+'</b>'+(s.type==='pickup' ? ' <i>PICKUP</i>' : '')+'<small>'+e([s.city, s.state].filter(Boolean).join(', '))+'</small></div></div>';
+          }).join('')+'</div></div>';
+    });
+    if(box.__h===h && box.getAttribute('data-mode')==='loads') return;
+    box.setAttribute('data-mode','loads'); box.__h = h; box.innerHTML = h;
+    document.getElementById('pxDrvOut').addEventListener('click', function(){ try{ localStorage.removeItem('px-driver'); }catch(x){} box.removeAttribute('data-mode'); box.__h = null; pxDrvShow(); });
+  }
+  function pxDrvLogin(){
+    var nm = (document.getElementById('pxDrvName').value||'').trim(), pin = (document.getElementById('pxDrvPin').value||'').trim(), err = document.getElementById('pxDrvErr');
+    err.textContent = '';
+    if(!nm || !/^\d{4}$/.test(pin)){ err.textContent = 'Type your name and your 4-digit PIN.'; return; }
+    if(!PXDRV.pinsReady || !PXS.ready){ err.textContent = 'Still connecting — try again in a few seconds.'; return; }
+    var cands = [];
+    pxDrvCarriers().forEach(function(a){ (a.drivers||[]).forEach(function(d){ if(d && String(d.name||'').trim().toLowerCase()===nm.toLowerCase()){ var k = pxDrvKey(a.id, d.name); if(PXDRV.pins[k]) cands.push({key:k, acct:a, d:d, pin:PXDRV.pins[k]}); } }); });
+    if(!cands.length){ err.textContent = 'No PIN is set up for that name yet. Ask the Plants Express office.'; return; }
+    Promise.all(cands.map(function(c){ return pxHash(c.pin.salt, pin).then(function(h){ return h===c.pin.hash ? c : null; }); })).then(function(r){
+      var hit = r.filter(Boolean)[0];
+      if(!hit){ err.textContent = 'That name and PIN don’t match.'; return; }
+      try{ localStorage.setItem('px-driver', JSON.stringify({key:hit.key, name:hit.d.name, carrier:hit.acct.name, hash:hit.pin.hash})); }catch(x){}
+      pxDrvShow();
+    });
+  }
+  setInterval(function(){ try{ if(window.__pxHomeTab==='driver' && document.visibilityState==='visible') pxDrvShow(); }catch(e){} }, 3000);
+
+  /* --- Admin → Driver PINs --- */
+  function pxDrvAdminRender(){
+    var box = document.getElementById('pxAdmDrivers'); if(!box) return;
+    var e = pxEsc, cars = pxDrvCarriers().filter(function(a){ return (a.drivers||[]).some(function(d){ return d && d.name; }); })
+      .sort(function(a,b){ var pa = /plants express/i.test(a.name) ? 0 : 1, pb = /plants express/i.test(b.name) ? 0 : 1; return pa-pb || String(a.name).localeCompare(String(b.name)); });
+    if(!cars.length){ box.innerHTML = '<div style="color:var(--text-dim);font-size:13px;">No carriers with drivers yet.</div>'; return; }
+    var h = '<table class="drv-adm"><thead><tr><th>Carrier</th><th>Driver</th><th>Phone</th><th>PIN</th><th></th></tr></thead><tbody>';
+    cars.forEach(function(a){
+      (a.drivers||[]).filter(function(d){ return d && d.name; }).forEach(function(d, i){
+        var k = pxDrvKey(a.id, d.name), p = PXDRV.pins[k];
+        h += '<tr><td>'+(i===0 ? '<b>'+e(a.name)+'</b>' : '')+'</td><td>'+e(d.name)+'</td><td>'+e(d.phone||'')+'</td>'
+          + '<td>'+(p ? '<span class="drv-ok">✓ Set</span> <small>'+e(new Date(p.at||0).toLocaleDateString())+'</small>' : '<span class="drv-no">Not set</span>')+'</td>'
+          + '<td><input class="drv-pin-in" data-k="'+e(k)+'" inputmode="numeric" maxlength="4" placeholder="New PIN" style="width:90px;"> '
+          + '<button class="btn primary small drv-set" data-k="'+e(k)+'" data-a="'+e(a.id)+'" data-n="'+e(d.name)+'" data-c="'+e(a.name)+'" type="button">'+(p ? 'Change PIN' : 'Set PIN')+'</button>'
+          + (p ? ' <button class="btn ghost small drv-rm" data-k="'+e(k)+'" type="button">Turn off</button>' : '')+'</td></tr>';
+      });
+    });
+    box.innerHTML = h + '</tbody></table><div id="pxDrvAdmMsg" style="font-size:12.5px;margin-top:8px;color:var(--accent);"></div>';
+  }
+  function pxDrvSavePins(pins, msg){
+    if(!PX.db){ alert('Not connected — try again in a moment.'); return; }
+    PX.db.collection('settings').doc('driverPins').set({pins:pins, updatedAt:Date.now()}).then(function(){ var m = document.getElementById('pxDrvAdmMsg'); if(m) m.textContent = msg; }).catch(function(){ alert('Could not save — check the connection and try again.'); });
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('.drv-set, .drv-rm'); if(!b || !document.getElementById('pxAdmDrivers').contains(b)) return;
+    var k = b.getAttribute('data-k'), pins = Object.assign({}, PXDRV.pins);
+    if(b.classList.contains('drv-rm')){ delete pins[k]; pxDrvSavePins(pins, 'PIN turned off. That driver can no longer sign in.'); return; }
+    var inp = Array.from(document.querySelectorAll('#pxAdmDrivers .drv-pin-in')).find(function(x){ return x.getAttribute('data-k')===k; });
+    var v = (inp && inp.value || '').trim();
+    if(!/^\d{4}$/.test(v)){ alert('Type a 4-digit PIN (numbers only).'); if(inp) inp.focus(); return; }
+    var salt = pxSalt();
+    pxHash(salt, v).then(function(h){ pins[k] = {salt:salt, hash:h, carrierId:b.getAttribute('data-a'), carrier:b.getAttribute('data-c'), name:b.getAttribute('data-n'), at:Date.now()};
+      pxDrvSavePins(pins, 'PIN saved for '+b.getAttribute('data-n')+'. Give it to them — it can’t be looked up later, only changed.'); });
+  });
   /* --- Directory picker (same look in Admin and on the dispatcher side) --- */
   var pxDirSel = {admin:null, disp:null, wb:null}, pxDirFilter = {admin:'all', disp:'all', wb:'all'};
   window.pxDirPickerHtml = function(w, q, a){ return pxDirPickerHtml(w, q, a); };
@@ -7990,6 +8146,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     try{ pxRenderRates(); }catch(e){}
     try{ pxRenderZoneAdmin(); }catch(e){}
     try{ pxRenderArchive(); }catch(e){}
+    try{ pxDrvAdminRender(); }catch(e){}
     var byName = function(a,b){ return String(a.name).localeCompare(String(b.name)); };
     document.getElementById('pxAdmDispatchers').innerHTML = pxAdmPwTable(PXS.accounts.filter(function(a){ return a.role==='dispatcher'; }).sort(byName), 'dispatcher');
     document.getElementById('pxAdmCompanies').innerHTML = pxAdmPwTable(PXS.accounts.filter(function(a){ return a.role==='shipper'; }).sort(byName), 'shipper');
