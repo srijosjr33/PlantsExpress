@@ -1790,6 +1790,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     <button type="button" data-tab="requests" class="on">Pending</button>
     <button type="button" data-tab="trucks">Delivery Trucks</button>
     <button type="button" data-tab="archive">Archive</button>
+    <button type="button" data-tab="directory">Directory</button>
   </div>
 </div>
 
@@ -5717,6 +5718,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(view.tab==='dispatch'){ renderDispatch(); return; }
     if(view.tab==='trucks'){ if(trkEditing) trkLiveRender(); else renderTrucks(); return; }
     if(view.tab==='archive'){ renderArchive(); return; }
+    if(view.tab==='directory'){ renderWbDir(); return; }
     var selId = disp[sel.r] ? disp[sel.r].id : null;
     buildDisp();
     if(selId){ var ni = disp.findIndex(function(r){return r && r.id===selId;}); if(ni>-1) sel.r = ni; }
@@ -6942,6 +6944,47 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     box.addEventListener('change', function(e){ if(view.tab!=='archive') return; if(e.target.classList.contains('ar-m')){ arch.month = e.target.value; renderArchive(); } else if(e.target.classList.contains('ar-mc')){ arch.mine = e.target.checked; renderArchive(); } });
     window.__pxWbArchRefresh = function(){ if(!wbDead && view.tab==='archive') renderArchive(); };
   })();
+  /* ===== Directory tab: same directory as Admin and the dispatcher side (read only) ===== */
+  var wbDirQ = '';
+  function renderWbDir(){
+    var box = $('summary'); if(!box) return;
+    var focused = root.activeElement && root.activeElement.classList && root.activeElement.classList.contains('dp-search');
+    var inner = '';
+    try{ inner = window.pxDirPickerHtml ? window.pxDirPickerHtml('wb', wbDirQ, false) : ''; }catch(e){ inner = ''; }
+    box.innerHTML = '<div class="wb-dir"><div class="wb-dir-t">Directory</div>'+(inner || '<div class="dp-empty">The directory is loading…</div>')+'</div>';
+    if(focused){ var s = box.querySelector('.dp-search'); if(s){ s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
+  }
+  (function(){
+    var st = document.createElement('style');
+    st.textContent = '.wb-dir{--panel:#383836;--panel-2:#444441;--text-dim:#B4B2A9;color:var(--text);max-width:1100px;}'
+      + '.wb-dir-t{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B4B2A9;margin:0 0 12px;}'
+      + '.dp-grid{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(260px,1.2fr);gap:14px;}'
+      + '@media (max-width:720px){ .dp-grid{grid-template-columns:1fr;} }'
+      + '.dp-list,.dp-card{background:var(--panel);border:1.5px solid #E24B4A;border-radius:14px;padding:12px 14px;}'
+      + '.dp-list{max-height:520px;overflow:auto;}'
+      + '.dp-search{width:100%;margin-bottom:10px;background:var(--field,#2C2C2A);color:var(--text);border:1px solid #5F5E5A;border-radius:8px;padding:8px 10px;font:inherit;}'
+      + '.dp-seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}'
+      + '.dp-f{border:1.5px solid #E24B4A;border-radius:999px;padding:4px 11px;font-size:11.5px;background:#444441;color:#D3D1C7;cursor:pointer;font-family:inherit;}'
+      + '.dp-f.on{background:#97C459;color:#173404;}'
+      + '.dp-it{display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;font-size:13px;margin-bottom:3px;background:transparent;border:none;color:var(--text);cursor:pointer;text-align:left;font-family:inherit;}'
+      + '.dp-it:hover{background:var(--panel-2);} .dp-it.sel{background:#27500A;color:#C0DD97;font-weight:700;}'
+      + '.dp-tag{font-size:10px;border-radius:999px;padding:1px 8px;background:#444441;color:#D3D1C7;white-space:nowrap;font-weight:600;}'
+      + '.dp-nm{font-size:18px;font-weight:700;margin-bottom:2px;}'
+      + '.dp-src{font-size:11.5px;color:var(--text-dim);margin-bottom:8px;}'
+      + '.dp-row{display:grid;grid-template-columns:130px 1fr;gap:8px;font-size:13.5px;padding:9px 0;border-bottom:1px solid var(--panel-2);}'
+      + '.dp-row span:first-child{color:var(--text-dim);font-size:11px;letter-spacing:.04em;padding-top:2px;}'
+      + '.dp-empty{color:var(--text-dim);font-size:12.5px;}';
+    root.appendChild(st);
+    var box = $('summary');
+    box.addEventListener('click', function(e){
+      if(view.tab!=='directory') return;
+      var b = e.target.closest('.dp-it, .dp-f'); if(!b || !window.pxDirSet) return;
+      if(b.classList.contains('dp-it')) window.pxDirSet('wb', 'sel', b.getAttribute('data-key')); else window.pxDirSet('wb', 'filter', b.getAttribute('data-f'));
+      renderWbDir();
+    });
+    box.addEventListener('input', function(e){ if(view.tab==='directory' && e.target.classList.contains('dp-search')){ wbDirQ = e.target.value; renderWbDir(); } });
+    window.__pxWbDirRefresh = function(){ if(!wbDead && view.tab==='directory') renderWbDir(); };
+  })();
   /* ---------- start ---------- */
   var unsub = null;
   myId = opts.repId; var myName = opts.repName || '';
@@ -7889,7 +7932,9 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<button class="btn ghost small adm-remove" data-kind="'+kind+'" data-id="'+pxEsc(x.id)+'" type="button">Remove</button></td></tr>'; }).join('')+'</tbody></table></div>';
   }
   /* --- Directory picker (same look in Admin and on the dispatcher side) --- */
-  var pxDirSel = {admin:null, disp:null}, pxDirFilter = {admin:'all', disp:'all'};
+  var pxDirSel = {admin:null, disp:null, wb:null}, pxDirFilter = {admin:'all', disp:'all', wb:'all'};
+  window.pxDirPickerHtml = function(w, q, a){ return pxDirPickerHtml(w, q, a); };
+  window.pxDirSet = function(w, what, v){ if(what==='sel') pxDirSel[w] = v; else pxDirFilter[w] = v; };
   function pxDirAll(){
     var out = [];
     (PXS.accounts||[]).forEach(function(a){
@@ -7924,6 +7969,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       '</div></div>';
   }
   function pxRenderDirPickers(){
+    try{ if(window.__pxWbDirRefresh) window.__pxWbDirRefresh(); }catch(e){}
     var a = document.getElementById('pxAdmDir'); if(a) a.innerHTML = pxDirPickerHtml('admin', (document.getElementById('pxDirSearch')||{}).value, true);
     var d = document.getElementById('dirPickerBox'); if(d){ var qd = (d.querySelector('.dp-search')||{}).value || ''; var focused = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('dp-search');
       d.innerHTML = pxDirPickerHtml('disp', qd, false); if(focused){ var s2 = d.querySelector('.dp-search'); s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); } }
@@ -8323,6 +8369,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         if(name==='accounts' && typeof updateCompanyPasswordHint==='function') { try{ updateCompanyPasswordHint(); }catch(e){} }
         if(name==='accounts'){ try{ lrPrefill(); }catch(e){} try{ if(!document.getElementById('carrierProfile').classList.contains('hidden')) renderCarrierProfile(); }catch(e){} }
         pxAdminRefreshGate();
+        try{ if(window.__pxWbDirRefresh) window.__pxWbDirRefresh(); }catch(e){}
       }, function(){});
     });
   }
