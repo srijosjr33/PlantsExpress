@@ -5537,7 +5537,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     return String(v).toLowerCase() || '\uffff';
   }
   function buildDisp(){
-    var list = Array.from(rows.values()).filter(function(r){ return !r.archived && r.status!=='Canceled' && !r.onTruck; });
+    var list = Array.from(rows.values()).filter(function(r){ return !r.archived && r.status!=='Canceled' && !r.onTruck && !pxTruckOf(r.id); });
     if(view.scope==='mine' && myId){
       // My customers: lines whose Sales rep matches the signed-in rep (any capitalization; first name alone counts)
       var me = String(myName||'').trim().toLowerCase(), meFirst = me.split(/\s+/)[0];
@@ -5576,7 +5576,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function salesStats(monIso, satIso){
     if(mode==='local'){ loadLocalTrucks(); try{ loadStatusMap = JSON.parse(localStorage.getItem('px-loadstatus')||'{}'); }catch(e){} }
     var pending = 0;
-    rows.forEach(function(r){ if(!r.archived && r.status!=='Canceled' && !r.onTruck) pending += trkNum((r.cells||{}).value); });
+    rows.forEach(function(r){ if(!r.archived && r.status!=='Canceled' && !r.onTruck && !pxTruckOf(r.id)) pending += trkNum((r.cells||{}).value); });
     var list = [], on = 0;
     trucks.forEach(function(t){
       if(t.status==='canceled' || t.backhaul) return;
@@ -6223,7 +6223,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   });
   function fltOpen(k, btn){
     var col = COLS.find(function(c){ return c.k===k; }); if(!col) return;
-    var base = Array.from(rows.values()).filter(function(r){ return !r.archived && r.status!=='Canceled' && !r.onTruck; });
+    var base = Array.from(rows.values()).filter(function(r){ return !r.archived && r.status!=='Canceled' && !r.onTruck && !pxTruckOf(r.id); });
     var vals = {}; base.forEach(function(r){ vals[fltKey(cellDisplay(r, col))] = true; });
     var keys = Object.keys(vals).sort(function(a,b){ if(a==='\u0000blank') return 1; if(b==='\u0000blank') return -1; return a.localeCompare(b, undefined, {numeric:true}); });
     var cur = view.flt[k];
@@ -7056,6 +7056,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     truckUnsub = opts.db.collection('trucks').onSnapshot(function(snap){
       trucks = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderTrucksIfOpen();
+      try{ if(view.tab==='requests') scheduleRender(); }catch(e){}
     }, function(){});
   } else { loadLocalTrucks(); }
   return { trucksScroll: function(){ var s = $('summary'), o = s && s.querySelector('.wk-scroll'); return o ? {t:o.scrollTop, l:o.scrollLeft} : null; },
@@ -10815,6 +10816,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   openReassignModal = function(){ var out = pxTnOrigOpen.apply(this, arguments); try{ pxTnFill(''); }catch(e){} return out; };
   /* ===== Dispatcher: anything not yet on the shared board gets sent again on its own (no page refresh needed) ===== */
   setInterval(function(){ try{ if(pxbRole()==='dispatcher' && document.visibilityState==='visible') pxbPush(); }catch(e){} }, 20000);
+  /* Dispatcher screens re-check every 20s that each Pender order's 'on a truck' flag matches the loads (fixes any order a stale screen flipped back to Pending) */
+  setInterval(function(){ try{ if(session && session.role==='dispatcher' && document.visibilityState==='visible') pxLockRows(); }catch(e){} }, 20000);
   document.addEventListener('visibilitychange', function(){ try{ if(document.visibilityState==='visible' && pxbRole()==='dispatcher') setTimeout(pxbPush, 1500); }catch(e){} });
   /* ===== Changes to an assigned load: list what changed for the carrier / broker email ===== */
   function pxChangeDetails(oldL, nf){
