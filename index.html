@@ -623,6 +623,34 @@
   .sa-h{font-weight:700;font-size:14px;color:#0C447C;} .sa-h.late{color:#A32D2D;} .sa-h.done{color:#27500A;}
   .sa-now{font-size:16px;font-weight:700;margin-top:3px;} .sa-was{color:#5F5E5A;font-size:12.5px;} .sa-by{color:#5F5E5A;font-size:12px;margin-top:2px;}
   .sa-x{position:absolute;top:4px;right:8px;background:none;border:0;font-size:20px;color:#5F5E5A;cursor:pointer;line-height:1;}
+
+  .cf-trk{margin-left:6px;background:#E6F1FB;color:#0C447C;border:1px solid #85B7EB;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  /* customer tracking page */
+  html.px-trackview body > *:not(#pxTrack){display:none !important;}
+  html.px-trackview body{background:#F1EFE8 !important;}
+  #pxTrack{min-height:100vh;display:flex;justify-content:center;padding:18px 12px;box-sizing:border-box;background:#F1EFE8;font-family:Roboto,Arial,sans-serif;color:#1a1a1a;}
+  #pxTrack .tk-card{width:100%;max-width:520px;background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.12);padding:20px 18px;align-self:flex-start;border-top:6px solid #3B6D11;}
+  #pxTrack .tk-msg{text-align:center;padding:40px 10px;font-size:17px;font-weight:600;} #pxTrack .tk-msg small{font-weight:400;color:#5F5E5A;}
+  #pxTrack .tk-brand{font-weight:700;color:#3B6D11;font-size:15px;margin-bottom:14px;} #pxTrack .tk-brand span{color:#5F5E5A;font-weight:500;}
+  #pxTrack .tk-cust{font-size:22px;font-weight:700;} #pxTrack .tk-sub{color:#5F5E5A;font-size:14px;margin-top:2px;}
+  #pxTrack .tk-now{font-size:28px;font-weight:800;margin:18px 0 12px;color:#185FA5;}
+  #pxTrack .tk-steps{display:flex;justify-content:space-between;position:relative;margin:0 0 16px;}
+  #pxTrack .tk-steps:before{content:'';position:absolute;left:10%;right:10%;top:9px;height:3px;background:#D3D1C7;}
+  #pxTrack .tk-st{flex:1;text-align:center;position:relative;font-size:11.5px;color:#888780;} #pxTrack .tk-st i{display:block;width:18px;height:18px;border-radius:50%;background:#D3D1C7;margin:0 auto 6px;border:3px solid #fff;box-shadow:0 0 0 1px #D3D1C7;}
+  #pxTrack .tk-st.done{color:#27500A;} #pxTrack .tk-st.done i{background:#639922;box-shadow:0 0 0 1px #639922;}
+  #pxTrack .tk-st.cur{color:#185FA5;font-weight:700;} #pxTrack .tk-st.cur i{background:#378ADD;box-shadow:0 0 0 3px #B5D4F4;}
+  #pxTrack .tk-ban{border-radius:10px;padding:12px 14px;font-size:16px;margin:0 0 12px;} #pxTrack .tk-ban.late{background:#FCEBEB;color:#791F1F;} #pxTrack .tk-ban.early{background:#E6F1FB;color:#0C447C;} #pxTrack .tk-ban.ok{background:#EAF3DE;color:#27500A;}
+  #pxTrack .tk-info{border-top:1px solid #E5E3DC;padding-top:6px;}
+  #pxTrack .tk-row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #F1EFE8;font-size:16px;} #pxTrack .tk-row span{font-size:11px;letter-spacing:.05em;color:#5F5E5A;font-weight:700;padding-top:4px;} #pxTrack .tk-row b{text-align:right;} #pxTrack .tk-row s{color:#888780;font-weight:400;font-size:13px;margin-left:6px;}
+  #pxTrack .tk-foot{margin-top:14px;font-size:13px;color:#444441;line-height:1.45;} #pxTrack .tk-foot small{color:#888780;}
+  /* while you were away */
+  #pxAway.aw-box{background:#F6F3EA;color:#1a1a1a;border:2px solid #E24B4A;border-left-width:7px;border-radius:12px;margin:0 0 10px;padding:10px 14px;}
+  #pxAway .aw-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;} #pxAway .aw-h b{font-size:15px;} #pxAway .aw-h span{color:#5F5E5A;font-size:13px;}
+  #pxAway .aw-h button{margin-left:auto;background:#97C459;color:#173404;border:0;border-radius:999px;padding:6px 14px;font-weight:700;cursor:pointer;}
+  #pxAway .aw-list{max-height:180px;overflow:auto;margin-top:8px;}
+  #pxAway .aw-it{display:grid;grid-template-columns:110px 110px 1fr;gap:8px;font-size:13px;padding:5px 0;border-top:1px solid #E5E3DC;} #pxAway .aw-t{color:#5F5E5A;}
+  #pxAway .aw-it.late b,#pxAway .aw-it.late span:last-child{color:#A32D2D;} #pxAway .aw-it.done b{color:#27500A;}
+  @media (max-width:640px){ #pxAway .aw-it{grid-template-columns:1fr;gap:0;} }
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -5676,6 +5704,19 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   function cfDay(iso, withYear){ var d = new Date(String(iso||'')+'T12:00:00'); if(!iso || isNaN(d)) return ''; return d.toLocaleDateString('en-US',{weekday:'short'})+' '+(d.getMonth()+1)+'/'+d.getDate()+(withYear?'/'+d.getFullYear():''); }
   function confLongDate(iso){ var d = new Date(String(iso||'')+'T12:00:00'); return isNaN(d) ? (iso||'') : d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}); }
+  function wbTrackEnsure(row){
+    if(!row || row.trackToken) return row && row.trackToken;
+    var ch = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789', tk = '', r = new Uint8Array(16); crypto.getRandomValues(r);
+    for(var i=0;i<16;i++) tk += ch[r[i] % ch.length];
+    row.trackToken = tk; storeUpdate(row.id, {trackToken: tk});
+    return tk;
+  }
+  function wbTrackCopy(row, btn){
+    var tk = wbTrackEnsure(row); if(!tk || !window.pxTrackLink) return;
+    var url = window.pxTrackLink(tk), done = function(){ if(btn){ var o = btn.textContent; btn.textContent = '✓ Link copied'; setTimeout(function(){ btn.textContent = o; }, 2200); } };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function(){ prompt('Copy this tracking link:', url); });
+    else prompt('Copy this tracking link:', url);
+  }
   function confLetter(t, sp, row){
     var c = (row && row.cells) || {}, eta = sp.time ? trkTime(sp.time) : '';
     var dDate = t.date || t.loadDate || '', lt = t.loadTime ? trkTime(t.loadTime) : '';
@@ -5693,6 +5734,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       'ESTIMATED DELIVERY TIME: '+String(eta || 'To be confirmed').toUpperCase()+'\n'+
       '\n'+
       'Load #: '+(t.loadRef||'')+'\n\n'+
+      (row && row.trackToken && window.pxTrackLink ? 'TRACK YOUR DELIVERY LIVE: '+window.pxTrackLink(row.trackToken)+'\n\n' : '')+
       'Please keep in mind that the delivery time is subject to change. If you have any additions or revisions to your order, please contact your sales rep, '+rep+'. Once we load and invoice your order, you will receive a call to confirm the final delivery time.\n\n'+
       'Thank you for your business!\n\n'+
       'Kind regards,\n'+rep+'\nPender Nursery, Inc.\n2620 Wall Store Road, Garner, NC 27529\n\n'+
@@ -5734,7 +5776,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
               '<td><span class="cf-ph">'+esc(c.phone||'—')+'</span><select class="cf-call" data-id="'+esc(sp.rowId)+'"'+(row?'':' disabled')+'>'+calls+'</select>'+
                 (cf.call==='SPOKE' ? '<input class="cf-spoke" data-id="'+esc(sp.rowId)+'" value="'+esc(cf.spokeWith!=null ? cf.spokeWith : (c.contact||''))+'" placeholder="Name of person" spellcheck="false">' : '')+'</td>'+
               '<td>'+(c.email ? esc(c.email) : '<span class="cf-dim">No email on this order</span>')+'</td>'+
-              '<td><label class="cf-ml"><input type="checkbox" class="cf-mail" data-id="'+esc(sp.rowId)+'" data-t="'+esc(t.id)+'" data-i="'+i+'"'+(cf.emailedAt?' checked':'')+(c.email && row?'':' disabled')+'>'+(cf.emailedAt?'<span class="cf-sent">sent '+new Date(cf.emailedAt).toLocaleString('en-US',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span>':'Send')+'</label></td></tr>';
+              '<td><label class="cf-ml"><input type="checkbox" class="cf-mail" data-id="'+esc(sp.rowId)+'" data-t="'+esc(t.id)+'" data-i="'+i+'"'+(cf.emailedAt?' checked':'')+(c.email && row?'':' disabled')+'>'+(cf.emailedAt?'<span class="cf-sent">sent '+new Date(cf.emailedAt).toLocaleString('en-US',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span>':'Send')+'</label>'+(row ? ' <button type="button" class="cf-trk" data-id="'+esc(sp.rowId)+'" title="Copy the customer\u2019s live tracking link">🔗 Track link</button>' : '')+'</td></tr>';
           }).join('')+'</tbody></table></div></div>';
       });
     }
@@ -5744,6 +5786,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function confBind(){
     if(!confEl || confEl.__bound) return; confEl.__bound = true;
     confEl.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.classList && e.target.classList.contains('cf-spoke')) e.target.blur(); });
+    confEl.addEventListener('click', function(e){ var tb = e.target.closest('.cf-trk'); if(tb){ wbTrackCopy(rows.get(tb.getAttribute('data-id')), tb); return; } });
     confEl.addEventListener('click', function(e){ var b = e.target.closest('[data-cweek]'); if(b){ view.confWeek = b.getAttribute('data-cweek'); renderConfirm(); } });
     confEl.addEventListener('change', function(e){
       var el = e.target, id = el.getAttribute && el.getAttribute('data-id'); if(!id) return;
@@ -5759,6 +5802,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           var t = trucks.find(function(x){ return String(x.id)===el.getAttribute('data-t'); }) || {};
           var stops = (t.stops && t.stops.length) ? t.stops : (t.orderIds||[]).map(function(x){ return {rowId:x}; });
           var sp = stops[+el.getAttribute('data-i')] || {rowId:id};
+          wbTrackEnsure(row);
           var L = confLetter(t, sp, row);
           var url = 'https://outlook.office.com/mail/deeplink/compose?to='+encodeURIComponent(L.to)+'&subject='+encodeURIComponent(L.subject)+'&body='+encodeURIComponent(L.body);
           try{ var ccName = (row && row.cells && row.cells.salesRep) || (row && row.repName) || ''; var cc = window.__pxRepEmail ? window.__pxRepEmail(ccName) : ''; if(cc && cc.toLowerCase()!==String(L.to||'').toLowerCase()) url += '&cc='+encodeURIComponent(cc); }catch(x){}
@@ -10924,6 +10968,98 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(!to){ try{ pxbToast('<div style="font-weight:700;">No email on file for '+pxEsc(load.claimedBy)+'</div><div style="opacity:.9;font-size:12.5px;">Type it into the email, and add it to their '+who+' profile in Admin so it fills in next time.</div>'); }catch(x){} }
   }
   /* ===== The paperwork link: ?doc=… opens just that load's BOL and rate sheet, no sign-in ===== */
+  /* ===== Customer tracking page: ?track=TOKEN shows ONE order's live delivery status ===== */
+  function pxTrackLink(tok){ return location.origin + location.pathname + '?track=' + encodeURIComponent(tok); }
+  window.pxTrackLink = pxTrackLink;
+  (function pxTrackView(){
+    var tok = null; try{ tok = new URLSearchParams(location.search).get('track'); }catch(e){}
+    if(!tok) return;
+    document.documentElement.classList.add('px-trackview');
+    var pg = document.createElement('div'); pg.id = 'pxTrack'; pg.innerHTML = '<div class="tk-card"><div class="tk-msg">Loading your delivery…</div></div>';
+    document.body.appendChild(pg);
+    var started = Date.now(), lastHtml = '';
+    var e = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var longDate = function(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m){ var p = String(iso||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(!p) return ''; m = [0, p[3].length===2?'20'+p[3]:p[3], p[1], p[2]]; } var d = new Date(+m[1], +m[2]-1, +m[3]); return d.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'}); };
+    var clock = function(mins){ mins = ((mins%1440)+1440)%1440; var h = Math.floor(mins/60), mm = mins%60; return ((h%12)||12)+':'+String(mm).padStart(2,'0')+' '+(h<12?'AM':'PM'); };
+    function draw(){
+      var rowsReady = !!PX.requestRows, boardReady = typeof PXB!=='undefined' && PXB.ready;
+      var row = (PX.requestRows||[]).find(function(r){ return r.trackToken===tok; });
+      if(!row){
+        var h0 = (rowsReady && Date.now()-started > 8000) || Date.now()-started > 20000 ? '<div class="tk-msg">This tracking link isn’t active.<br><small>Please contact your Pender Nursery sales rep.</small></div>' : '<div class="tk-msg">Loading your delivery…</div>';
+        if(h0!==lastHtml){ pg.querySelector('.tk-card').innerHTML = h0; lastHtml = h0; } return;
+      }
+      if(!boardReady && Date.now()-started < 8000) return;
+      var c = row.cells||{}, oid = 'wb_'+row.id, load = null;
+      Object.keys((typeof PXB!=='undefined' && PXB.docs)||{}).forEach(function(id){ try{ var l = JSON.parse(PXB.docs[id].json); if(l && l.status!=='canceled' && (l.sourceRequestIds||[]).indexOf(oid)>-1) load = l; }catch(x){} });
+      if(!load) (PX.archive||[]).forEach(function(a){ if(a.load && (a.load.sourceRequestIds||[]).indexOf(oid)>-1) load = a.load; });
+      var st = load ? {status:load.status, deliveryStage:load.deliveryStage, timing:load.timing||null} : null;
+      var ls = load && (PXDRV.ls||{})[String(load.id)];
+      if(st && ls && (ls.at||0) > (load.carrierStatusAt||0) && String(ls.by||'').toLowerCase()===String(load.claimedBy||'').toLowerCase() && load.status!=='completed') st = {status:ls.status||st.status, deliveryStage:ls.deliveryStage||st.deliveryStage, timing:ls.timing||null};
+      var stop = load ? ((load.stops||[]).find(function(s){ return s.orderId===oid; }) || {}) : {};
+      var step = 0;   // 0 received, 1 scheduled, 2 loading, 3 on the way, 4 delivered
+      if(row.status==='Canceled'){ var hc = '<div class="tk-msg">This order was canceled.<br><small>Please contact your sales rep'+(c.salesRep?', '+e(c.salesRep):'')+'.</small></div>'; if(hc!==lastHtml){ pg.querySelector('.tk-card').innerHTML = hc; lastHtml = hc; } return; }
+      if(row.status==='Delivered' || row.archived || (st && st.status==='completed')) step = 4;
+      else if(st && st.status==='claimed'){ var g = st.deliveryStage||'claimed'; step = (g==='loading') ? 2 : (g==='in_route' || g==='out_for_delivery' || g==='on_site') ? 3 : 1; }
+      else if(load) step = 1;
+      var steps = ['Order received','Scheduled','Being loaded','On the way','Delivered'];
+      var tm = (st && st.timing && step>0 && step<4) ? st.timing : null;
+      var dDate = stop.date || c.reqDate || '', base = null;
+      if(/^\d{1,2}:\d{2}/.test(stop.time||'')){ var p = stop.time.split(':'); base = (+p[0])*60 + (+p[1]); }
+      var late = tm && tm.state==='delayed' ? (parseInt(tm.minutes,10)||0) : 0;
+      var banner = '';
+      if(tm && tm.state==='delayed') banner = '<div class="tk-ban late">⏱️ Your delivery is running '+(late ? 'about <b>'+(late>=60 ? (late/60)+(late===60?' hour':' hours') : late+' minutes')+'</b> late' : 'late')+'</div>';
+      else if(tm && tm.state==='ahead') banner = '<div class="tk-ban early">🚀 Your delivery is running ahead of schedule</div>';
+      else if(tm && tm.state==='on_time') banner = '<div class="tk-ban ok">✅ Your delivery is on time</div>';
+      var eta = '';
+      if(step===4) eta = '<div class="tk-row"><span>DELIVERED</span><b>'+e(longDate(dDate)||'')+'</b></div>';
+      else {
+        eta = '<div class="tk-row"><span>DELIVERY DATE</span><b>'+e(longDate(dDate)||'To be confirmed')+'</b></div>';
+        if(base!=null) eta += '<div class="tk-row"><span>ESTIMATED ARRIVAL</span><b>'+(late ? 'About '+clock(base+late)+' <s>'+clock(base)+'</s>' : clock(base))+'</b></div>';
+        else eta += '<div class="tk-row"><span>ESTIMATED ARRIVAL</span><b>To be confirmed</b></div>';
+      }
+      var h = '<div class="tk-brand">Pender Nursery <span>· Delivery tracking</span></div>'
+        + '<div class="tk-cust">'+e(c.customer||'')+'</div>'
+        + '<div class="tk-sub">Order #'+e(c.orderNo||'—')+(c.city ? ' · '+e([c.city, c.state].filter(Boolean).join(', ')) : '')+'</div>'
+        + '<div class="tk-now">'+e(steps[step])+'</div>'
+        + '<div class="tk-steps">'+steps.map(function(s, i){ return '<div class="tk-st'+(i<step?' done':i===step?' cur':'')+'"><i></i><span>'+e(s)+'</span></div>'; }).join('')+'</div>'
+        + banner + '<div class="tk-info">'+eta+'</div>'
+        + '<div class="tk-foot">Updates automatically'+(step<4 ? ' — no need to refresh' : '')+'. Questions? Contact your sales rep'+(c.salesRep ? ', <b>'+e(c.salesRep)+'</b>' : '')+'.<br><small>Times are estimates and can change due to loading, weather or traffic.</small></div>';
+      if(h!==lastHtml){ pg.querySelector('.tk-card').innerHTML = h; lastHtml = h; }
+    }
+    draw(); setInterval(draw, 2000);
+  })();
+
+  /* ===== "While you were away": status changes on Pender loads since this person last looked ===== */
+  function pxWayKey(){ var s = pxGetSession(); return 'px-away-'+((s && (s.id || s.name)) || 'me'); }
+  function pxWayItems(since){
+    var out = [];
+    if(typeof PXB==='undefined' || !PXB.ready) return out;
+    var re = /set timing:|updated status to|Marked completed|updated: /;
+    Object.keys(PXB.docs||{}).forEach(function(id){
+      var l; try{ l = JSON.parse(PXB.docs[id].json); }catch(e){ return; }
+      if(!l || !l.isPender) return;
+      (l.events||[]).forEach(function(ev){ if(ev && ev.ts > since && re.test(ev.label||'')) out.push({ts:ev.ts, ref:pxLoadNo(l.ref), carrier:l.claimedBy||'', label:ev.label}); });
+    });
+    return out.sort(function(a,b){ return b.ts-a.ts; });
+  }
+  function pxWayRender(){
+    var host = document.getElementById('pxWbHost'); if(!host || !PX.wb || host.classList.contains('hidden')) return;
+    var box = document.getElementById('pxAway');
+    if(!box){ box = document.createElement('div'); box.id = 'pxAway'; host.parentNode.insertBefore(box, host); }
+    var k = pxWayKey(), since = 0; try{ since = +localStorage.getItem(k) || 0; }catch(e){}
+    if(!since){ try{ localStorage.setItem(k, String(Date.now())); }catch(e){} box.innerHTML = ''; box.className = 'hidden'; return; }
+    var items = pxWayItems(since);
+    if(!items.length){ box.innerHTML = ''; box.className = 'hidden'; return; }
+    var e = pxEsc, when = new Date(since);
+    var h = '<div class="aw-h"><b>🔔 While you were away</b><span>'+items.length+' delivery update'+(items.length===1?'':'s')+' since '+e(when.toLocaleString('en-US',{weekday:'short', hour:'numeric', minute:'2-digit'}))+'</span><button type="button" id="pxAwayOk">Got it</button></div>'
+      + '<div class="aw-list">'+items.slice(0,30).map(function(it){
+          var txt = String(it.label).replace(/^(.*?) updated: /,'$1 — ').replace(/ set timing: /,' — ').replace(/ updated status to /,' — ');
+          var cls = /Delayed/.test(it.label) ? ' late' : /complet/i.test(it.label) ? ' done' : '';
+          return '<div class="aw-it'+cls+'"><span class="aw-t">'+e(new Date(it.ts).toLocaleString('en-US',{weekday:'short', hour:'numeric', minute:'2-digit'}))+'</span><b>'+e(it.ref)+'</b><span>'+e(txt)+'</span></div>'; }).join('')+'</div>';
+    if(box.__h!==h){ box.__h = h; box.innerHTML = h; box.className = 'aw-box';
+      document.getElementById('pxAwayOk').addEventListener('click', function(){ try{ localStorage.setItem(k, String(Date.now())); }catch(e){} box.className = 'hidden'; box.__h = ''; }); }
+  }
+  setInterval(function(){ try{ pxWayRender(); }catch(e){} }, 3000);
   (function pxDocView(){
     var tok = null; try{ tok = new URLSearchParams(location.search).get('doc'); }catch(e){}
     if(!tok) return;
