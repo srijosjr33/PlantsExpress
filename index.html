@@ -811,6 +811,7 @@
           <button type="button" data-admtab="managers" id="pxAdmManagersTabBtn">Managers</button>
           <button type="button" data-admtab="directory">Directory</button>
           <button type="button" data-admtab="driverpins">Driver PINs</button>
+          <button type="button" data-admtab="statusmail">Email alerts</button>
           <button type="button" data-admtab="zones">Freight zones</button>
           <button type="button" data-admtab="sgoals">Sales goals</button>
           <button type="button" data-admtab="archive">Archive</button>
@@ -924,6 +925,11 @@
           <div id="pxAdmAdmins"></div>
         </div>
 
+        <div class="panel panel-pad" data-admpanel="statusmail">
+          <div class="section-title">Email alerts</div>
+          <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Tick who gets an email whenever a Pender load’s delivery status or timing changes (On site, Loading, En route, Delayed, Completed…) — even when the board is closed. Emails go to the address on each employee’s record (Admin → Pender Nursery employees). The emails start once the email service is connected in Supabase.</div>
+          <div id="pxAdmMail"></div>
+        </div>
         <div class="panel panel-pad" data-admpanel="driverpins">
           <div class="section-title">Driver PINs</div>
           <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Give a driver a 4-digit PIN so they can open the <b>Driver</b> tab on their phone, sign in with their name and PIN, and see every upcoming load assigned to them, with the time for each stop. Drivers come from each carrier’s profile. PINs are stored scrambled, so they can’t be looked up — only changed or turned off.</div>
@@ -7188,6 +7194,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
 
   function pxSalesRepNames(){ return (PX.reps||[]).filter(function(r){ return r.role!=='support' && r.name; }).map(function(r){ return String(r.name).trim(); }).sort(function(a,b){ return a.localeCompare(b); }); }
   function pxRepsChanged(){
+    try{ pxMailAdminRender(); }catch(e){}
     PX.repsReady = true;
     try{ if(PX.wb && PX.wb.refreshReps) PX.wb.refreshReps(); }catch(e){}
     pxRenderRepAdmin();
@@ -8058,6 +8065,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     PX.db.collection('settings').onSnapshot(function(snap){
       var d = snap.docs.find(function(x){ return x.id==='driverPins'; });
       PXDRV.pins = (d && d.data().pins) || {}; PXDRV.pinsReady = true;
+      var dm = snap.docs.find(function(x){ return x.id==='statusMail'; }); PXDRV.mail = (dm && dm.data()) || {reps:{}}; PXDRV.mailReady = true; try{ pxMailAdminRender(); }catch(e){}
       try{ pxDrvAdminRender(); }catch(e){}
       try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
     }, function(){});
@@ -8236,6 +8244,23 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     });
     box.innerHTML = h + '</tbody></table><div id="pxDrvAdmMsg" style="font-size:12.5px;margin-top:8px;color:var(--accent);"></div>';
   }
+  function pxMailAdminRender(){
+    var box = document.getElementById('pxAdmMail'); if(!box) return;
+    var e = pxEsc, on = (PXDRV.mail && PXDRV.mail.reps) || {}, reps = (PX.reps||[]).slice().sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); });
+    if(!reps.length){ box.innerHTML = '<div style="color:var(--text-dim);font-size:13px;">No Pender employees yet.</div>'; return; }
+    var n = 0;
+    var h = '<table class="drv-adm"><thead><tr><th style="width:60px;">Emails</th><th>Employee</th><th>Role</th><th>Email address</th></tr></thead><tbody>'
+      + reps.map(function(r){ var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.email||'').trim()), chk = !!on[r.id] && ok; if(chk) n++;
+          return '<tr><td><input type="checkbox" class="pxm-cb" data-id="'+e(r.id)+'"'+(chk?' checked':'')+(ok?'':' disabled title="Add an email address for this employee first"')+' style="width:18px;height:18px;"></td><td><b>'+e(r.name)+'</b></td><td>'+e(r.role==='support'?'Sales support':r.role==='rep'?'Sales rep':(r.role||''))+'</td><td>'+(ok ? e(r.email) : '<span style="color:var(--text-dim);">No email on file</span>')+'</td></tr>'; }).join('')
+      + '</tbody></table><div style="font-size:12.5px;margin-top:8px;color:var(--accent);">'+n+' employee'+(n===1?'':'s')+' will get delivery status emails.</div>';
+    if(box.__h!==h){ box.__h = h; box.innerHTML = h; }
+  }
+  document.addEventListener('change', function(ev){
+    var cb = ev.target; if(!cb.classList || !cb.classList.contains('pxm-cb')) return;
+    if(!PX.db){ alert('Not connected — try again in a moment.'); cb.checked = !cb.checked; return; }
+    var reps = Object.assign({}, (PXDRV.mail && PXDRV.mail.reps) || {}); if(cb.checked) reps[cb.getAttribute('data-id')] = true; else delete reps[cb.getAttribute('data-id')];
+    PX.db.collection('settings').doc('statusMail').set({reps:reps, updatedAt:Date.now()}).catch(function(){ alert('Could not save — try again.'); });
+  });
   function pxDrvSavePins(pins, msg){
     if(!PX.db){ alert('Not connected — try again in a moment.'); return; }
     PX.db.collection('settings').doc('driverPins').set({pins:pins, updatedAt:Date.now()}).then(function(){ var m = document.getElementById('pxDrvAdmMsg'); if(m) m.textContent = msg; }).catch(function(){ alert('Could not save — check the connection and try again.'); });
