@@ -651,6 +651,13 @@
   #pxAway .aw-it{display:grid;grid-template-columns:110px 110px 1fr;gap:8px;font-size:13px;padding:5px 0;border-top:1px solid #E5E3DC;} #pxAway .aw-t{color:#5F5E5A;}
   #pxAway .aw-it.late b,#pxAway .aw-it.late span:last-child{color:#A32D2D;} #pxAway .aw-it.done b{color:#27500A;}
   @media (max-width:640px){ #pxAway .aw-it{grid-template-columns:1fr;gap:0;} }
+
+  /* dispatcher undo / redo */
+  .pxu-bar{position:fixed;left:16px;bottom:16px;z-index:99997;display:flex;gap:0;border:1.5px solid #E24B4A;border-radius:999px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .pxu-bar button{background:#444441;color:#F1EFE8;border:0;padding:8px 16px;font:700 14px Roboto,system-ui,sans-serif;cursor:pointer;}
+  .pxu-bar button + button{border-left:1px solid #5F5E5A;}
+  .pxu-bar button:hover:not(:disabled){background:#97C459;color:#173404;}
+  .pxu-bar button:disabled{color:#888780;cursor:default;}
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -4403,6 +4410,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(load.cancelProposal) acts.push(['withdraw-cancel-proposal-btn','Withdraw cancellation request']);
       else acts.push(['cancel-truck-btn', (load.sourceRequestIds||[]).some(function(rid){ return requests.some(function(r){ return r.id===rid; }); }) ? 'Propose cancellation' : 'Cancel truck']);
     }
+    if(load.status==='completed') acts.unshift(['px-reopen','↶ Reopen (undo Completed)']);
     if(load.status==='canceled'){ acts.push(['return-orders-btn','Return orders & discard load']); acts.push(['purge-load-btn','Remove permanently']); }
     var html = '<select class="sa-select" data-id="'+load.id+'" style="font-size:11.5px;padding:4px 8px;max-width:190px;">'+
       '<optgroup label="Status">'+st+'</optgroup>'+
@@ -4495,7 +4503,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td class="sa-hide">'+(load.status==='claimed' ? '<select class="stage-select" data-id="'+load.id+'" style="font-size:11px;padding:3px;">'+claimedStageOptions(load)+
           '</select>'+timingControlHtml(load)+(load.pendingChange ? ' <span class="badge pending" style="font-size:9.5px;">awaiting carrier</span>' : '')
           : load.status==='available' ? '<select class="pre-stage-select" data-id="'+load.id+'" style="font-size:11px;padding:3px;"><option value="available" selected>Available</option><option value="claimed">Claimed</option><option value="cancel">Cancel</option></select>'
-          : '<span class="badge '+load.status+'">'+statusLabel(load.status)+'</span>')+'</td>'+
+          : '<span class="badge '+load.status+'">'+statusLabel(load.status)+'</span>'+(load.status==='completed' ? ' <button type="button" class="btn ghost small px-reopen" data-id="'+load.id+'" title="Undo a Completed picked by mistake">↶ Reopen</button>' : ''))+'</td>'+
         '<td>'+((load.status==='claimed'||load.status==='completed')?load.claimedBy:'—')+'</td>'+
         '<td class="wrap sa-hide"><div style="display:flex;gap:5px;flex-wrap:wrap;">'+
           (load.status!=='canceled' && loadEditLocked(load) ? '<span class="badge claimed" title="Locked once the load reaches Loading">🔒 Locked</span><button class="btn ghost small unlock-load-btn" data-id="'+load.id+'">Unlock</button>' : '')+
@@ -11146,6 +11154,117 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   openReassignModal = function(){ var out = pxTnOrigOpen.apply(this, arguments); try{ pxTnFill(''); }catch(e){} return out; };
   /* ===== Dispatcher: anything not yet on the shared board gets sent again on its own (no page refresh needed) ===== */
   setInterval(function(){ try{ if(pxbRole()==='dispatcher' && document.visibilityState==='visible') pxbPush(); }catch(e){} }, 20000);
+  /* ===== Dispatcher UNDO: every change made on this screen can be taken back (Undo button + history) ===== */
+  var PXU = {snap:null, act:false, stack:[], undoing:false, t:null};
+  function pxuIsDisp(){ try{ return !!(session && session.role==='dispatcher'); }catch(e){ return false; } }
+  function pxuMap(arr){ var m = {}; (arr||[]).forEach(function(x){ if(x && x.id!=null) m[String(x.id)] = JSON.stringify(x); }); return m; }
+  function pxuTake(){ return {loads:pxuMap(loads), dlo:pxuMap(deliveryLogOrders), req:pxuMap(requests), evn:(function(){ var m = {}; loads.forEach(function(l){ m[l.id] = (l.events||[]).length; }); return m; })()}; }
+  function pxuClean(js){ if(js==null) return null; try{ var o = JSON.parse(js); Object.keys(o).forEach(function(k){ if(k.indexOf('__')===0) delete o[k]; }); return JSON.stringify(o); }catch(e){ return js; } }
+  ['click','change','keydown'].forEach(function(t){
+    document.addEventListener(t, function(ev){
+      if(PXU.undoing || !pxuIsDisp()) return;
+      if(t==='keydown' && ev.key!=='Enter') return;
+      if(ev.target && ev.target.closest && ev.target.closest('.pxu-ui')) return;
+      try{ PXU.snap = pxuTake(); }catch(e){ PXU.snap = null; }
+      PXU.act = true; clearTimeout(PXU.t); PXU.t = setTimeout(function(){ PXU.act = false; PXU.snap = null; }, 1500);
+    }, true);
+  });
+  var pxuInnerPersist = persistData;
+  persistData = function(){
+    pxuInnerPersist.apply(this, arguments);
+    try{ if(!PXU.undoing && PXU.act && PXU.snap && pxuIsDisp()) pxuRecord(); }catch(e){ console.error(e); }
+  };
+  function pxuRecord(){
+    var b = PXU.snap, a = pxuTake(), items = [], label = '';
+    ['loads','dlo','req'].forEach(function(kind){
+      var ids = {}; Object.keys(b[kind]).forEach(function(k){ ids[k] = 1; }); Object.keys(a[kind]).forEach(function(k){ ids[k] = 1; });
+      Object.keys(ids).forEach(function(id){ var x = b[kind][id] || null, y = a[kind][id] || null; if(pxuClean(x)!==pxuClean(y)) items.push({kind:kind, id:id, before:x, after:y}); });
+    });
+    if(!items.length) return;
+    PXU.snap = pxuTake();   // the next save in the same click starts from here
+    var li = items.filter(function(i){ return i.kind==='loads'; });
+    li.forEach(function(i){
+      var l = loads.find(function(x){ return String(x.id)===i.id; });
+      if(l && !label){ var n0 = b.evn[l.id]||0, ev = (l.events||[]).slice(n0); if(ev.length) label = ev[ev.length-1].label; }
+    });
+    var refs = li.map(function(i){ var o = JSON.parse(i.after || i.before); return pxLoadNo(o.ref); });
+    if(!label){
+      var add = li.filter(function(i){ return !i.before; }).length, del = li.filter(function(i){ return !i.after; }).length;
+      label = add ? 'New load' : del ? 'Removed load' : li.length ? 'Changed load' : 'Changed orders';
+    }
+    var e = {id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), at:Date.now(), label:label, refs:refs, items:items};
+    PXU.stack.unshift(e); if(PXU.stack.length > 25) PXU.stack.pop();
+    PXU.redo = []; pxuBtn();
+  }
+  PXU.redo = [];
+  function pxuApply(e, dir){   // dir 'undo' puts things back to before; 'redo' does the change again
+    var want = dir==='undo' ? 'before' : 'after', have = dir==='undo' ? 'after' : 'before';
+    var later = e.items.some(function(i){
+      var arr = i.kind==='loads' ? loads : i.kind==='dlo' ? deliveryLogOrders : requests;
+      var cur = arr.find(function(x){ return String(x.id)===i.id; });
+      return pxuClean(cur ? JSON.stringify(cur) : null) !== pxuClean(i[have]);
+    });
+    if(later && !confirm('Someone changed '+(e.refs.join(', ')||'this')+' after this step. '+(dir==='undo'?'Undo':'Redo')+' anyway?')) return false;
+    PXU.undoing = true;
+    try{
+      e.items.forEach(function(i){
+        var key = i.kind==='loads' ? 'loads' : i.kind==='dlo' ? 'deliveryLogOrders' : 'requests';
+        var arr = key==='loads' ? loads : key==='deliveryLogOrders' ? deliveryLogOrders : requests;
+        var idx = arr.findIndex(function(x){ return String(x.id)===i.id; });
+        var target = i[want];
+        if(!target){ if(idx>-1) arr.splice(idx, 1); return; }
+        var obj = JSON.parse(target);
+        if(idx>-1){ Object.keys(arr[idx]).forEach(function(k){ if(k.indexOf('__')===0) obj[k] = arr[idx][k]; }); arr[idx] = obj; }
+        else {
+          delete obj.__baseAt; delete obj.__boardAt; arr.push(obj);
+          if(key==='loads'){ try{ if(PXB.dead && PXB.dead[i.id]){ delete PXB.dead[i.id]; if(PX.db) PX.db.collection('boardDeleted').doc(i.id).delete().catch(function(){}); } }catch(x){} }
+        }
+        if(key==='loads'){ try{ addEvent(obj, (dir==='undo'?'Undo':'Redo')+' by '+session.name+': '+e.label); }catch(x){} }
+      });
+      persistData(); renderAll();
+    } finally { PXU.undoing = false; PXU.act = false; PXU.snap = null; }
+    // remember the new "after" so the opposite button works from here
+    e.items.forEach(function(i){
+      var arr = i.kind==='loads' ? loads : i.kind==='dlo' ? deliveryLogOrders : requests;
+      var cur = arr.find(function(x){ return String(x.id)===i.id; });
+      i[want] = cur ? JSON.stringify(cur) : null;
+    });
+    return true;
+  }
+  function pxuUndo(){ var e = PXU.stack[0]; if(!e) return; if(pxuApply(e, 'undo')){ PXU.stack.shift(); PXU.redo.unshift(e); pxuBtn(); } }
+  function pxuRedo(){ var e = PXU.redo[0]; if(!e) return; if(pxuApply(e, 'redo')){ PXU.redo.shift(); PXU.stack.unshift(e); pxuBtn(); } }
+  function pxuToast(){}
+  function pxuBtn(){
+    var b = document.getElementById('pxuBar');
+    if(!pxuIsDisp()){ if(b) b.remove(); return; }
+    if(!b){
+      b = document.createElement('div'); b.id = 'pxuBar'; b.className = 'pxu-ui pxu-bar';
+      b.innerHTML = '<button type="button" id="pxuU">↶ Undo</button><button type="button" id="pxuR">↷ Redo</button>';
+      document.body.appendChild(b);
+      b.querySelector('#pxuU').addEventListener('click', pxuUndo); b.querySelector('#pxuR').addEventListener('click', pxuRedo);
+    }
+    var u = b.querySelector('#pxuU'), r = b.querySelector('#pxuR');
+    u.disabled = !PXU.stack.length; r.disabled = !PXU.redo.length;
+    u.title = PXU.stack.length ? 'Undo: '+(PXU.stack[0].refs.join(', ')+' '+PXU.stack[0].label).trim() : 'Nothing to undo';
+    r.title = PXU.redo.length ? 'Redo: '+(PXU.redo[0].refs.join(', ')+' '+PXU.redo[0].label).trim() : 'Nothing to redo';
+  }
+  document.addEventListener('keydown', function(ev){
+    if(!pxuIsDisp() || !(ev.ctrlKey || ev.metaKey)) return;
+    var t = ev.target, tag = t && t.tagName; if(tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT' || (t && t.isContentEditable)) return;
+    if(document.getElementById('pxWbHost') && !document.getElementById('pxWbHost').classList.contains('hidden') && document.getElementById('pxWbHost').offsetParent) return;
+    var k = String(ev.key).toLowerCase();
+    if(k==='z' && !ev.shiftKey){ ev.preventDefault(); pxuUndo(); } else if(k==='y' || (k==='z' && ev.shiftKey)){ ev.preventDefault(); pxuRedo(); }
+  });
+  setInterval(pxuBtn, 2000);
+  /* Reopen a completed load (fixes a "Completed" picked by mistake, any time later) */
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('.px-reopen'); if(!b || !pxuIsDisp()) return;
+    var l = loads.find(function(x){ return String(x.id)===b.getAttribute('data-id'); }); if(!l || l.status!=='completed') return;
+    if(!confirm('Reopen '+pxLoadNo(l.ref)+'? It goes back to "'+(DELIVERY_STAGE_LABELS[l.deliveryStage||'claimed']||'Claimed')+'" so you can set the right status.')) return;
+    l.status = 'claimed'; delete l.completedAt;
+    addEvent(l, 'Reopened by '+session.name+' (was Completed)');
+    persistData(); renderAll();
+  });
   /* Dispatcher screens re-check every 20s that each Pender order's 'on a truck' flag matches the loads (fixes any order a stale screen flipped back to Pending) */
   setInterval(function(){ try{ if(session && session.role==='dispatcher' && document.visibilityState==='visible') pxLockRows(); }catch(e){} }, 20000);
   document.addEventListener('visibilitychange', function(){ try{ if(document.visibilityState==='visible' && pxbRole()==='dispatcher') setTimeout(pxbPush, 1500); }catch(e){} });
