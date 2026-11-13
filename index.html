@@ -662,7 +662,9 @@
   /* Overview: weekly totals box, top right */
   .ov-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;}
   .ov-head > .ov-top{flex:1 1 420px;}
-  .ov-wkt{margin-left:auto;margin-top:4px;margin-bottom:10px;border:1.5px solid #E24B4A;border-radius:10px;overflow:auto;max-width:100%;background:var(--panel);}
+  .ov-wkt{margin-left:auto;margin-top:4px;margin-bottom:10px;border:1.5px solid #E24B4A;border-radius:10px;overflow-x:auto;overflow-y:hidden;min-width:0;flex:0 1 auto;max-width:min(100%, 860px);background:var(--panel);}
+  .ov-wkt thead th.ov-wkt-h, .ov-wkt tbody th{position:sticky;left:0;z-index:1;} .ov-wkt thead th.ov-wkt-h{background:#111;} .ov-wkt tbody th{background:var(--panel);} .ov-wkt tbody tr.alt th{background:#2f3a44;}
+  .ov-wkt thead th.ov-wkt-f{box-shadow:inset 3px 0 0 #E53935;}
   .ov-wkt table{border-collapse:collapse;font:600 12.5px Arial,Helvetica,sans-serif;}
   .ov-wkt thead th{background:#111;color:#fff;padding:6px 12px;text-align:right;white-space:nowrap;font-size:12px;border-left:1px solid #444;}
   .ov-wkt thead th span{font-size:11px;color:#C0DD97;letter-spacing:.04em;}
@@ -9032,9 +9034,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(PX.db) PX.db.collection('settings').doc('overview').set(OV.settings).catch(function(){});
     else { try{ localStorage.setItem('px-overview-settings', JSON.stringify(OV.settings)); }catch(e){} }
   }
-  function ovRender(){ var __b = document.getElementById('ovBody'), __o = __b && __b.querySelector('.ov-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(OV.year+'|'+OV.month)} : null; try{ return ovRender__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.ov-scroll'); if(__k && __n && __n !== __o && __k.s === (OV.year+'|'+OV.month)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
+  function ovWkScroll(prev){ var w = document.querySelector('#ovBody .ov-wkt'); if(!w) return; if(prev && prev.k===w.getAttribute('data-focus')){ w.scrollLeft = prev.l; return; } var f = w.querySelector('th.ov-wkt-f') || w.querySelector('thead th:last-child'); var h = w.querySelector('th.ov-wkt-h'); if(f) w.scrollLeft = Math.max(0, f.offsetLeft - (h ? h.offsetWidth : 0)); }
+  function ovRender(){ var __w = document.querySelector('#ovBody .ov-wkt'), __wk = __w ? {k:__w.getAttribute('data-focus'), l:__w.scrollLeft} : null; try{ return ovRender__x.apply(this, arguments); } finally { try{ ovWkScroll(__wk); }catch(e){} } }
+  function ovRender__x(){ var __b = document.getElementById('ovBody'), __o = __b && __b.querySelector('.ov-scroll'), __k = __o ? {t:__o.scrollTop, l:__o.scrollLeft, s:(OV.year+'|'+OV.month)} : null; try{ return ovRender__inner.apply(this, arguments); } finally { try{ var __n = __b && __b.querySelector('.ov-scroll'); if(__k && __n && __n !== __o && __k.s === (OV.year+'|'+OV.month)){ __n.scrollTop = __k.t; __n.scrollLeft = __k.l; } }catch(__e){} } }
   /* Weekly totals box (top-right of Overview) — same lines as the old Google Sheet */
-  function ovWeekly(rows, maxCols){
+  function ovWeekly(rows, maxCols, focusIso){
     var wkOf = function(iso){ var p = String(iso||'').split('-'); if(p.length<3) return ''; var dt = new Date(+p[0], +p[1]-1, +p[2]); dt.setDate(dt.getDate()-((dt.getDay()+6)%7)); return dt.getFullYear()+'-'+('0'+(dt.getMonth()+1)).slice(-2)+'-'+('0'+dt.getDate()).slice(-2); };
     var isoWeek = function(d){ var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); var day = t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-day); var y0 = new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t-y0)/86400000+1)/7); };
     var g = {};
@@ -9049,7 +9053,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     });
     var tgt = ovNum(OV.settings.target) || 90;
     var line = function(lbl, f, cls){ return '<tr'+(cls?' class="'+cls+'"':'')+'><th>'+lbl+'</th>'+cols.map(function(c){ return '<td>'+f(c)+'</td>'; }).join('')+'</tr>'; };
-    return '<div class="ov-wkt"><table><thead><tr><th class="ov-wkt-h">WEEKLY TOTALS</th>'+cols.map(function(c){ return '<th>'+c.lbl+'<br><span>WEEK '+c.wn+'</span></th>'; }).join('')+'</tr></thead><tbody>'
+    var fw = focusIso ? wkOf(focusIso) : ws[ws.length-1];
+    return '<div class="ov-wkt" data-focus="'+fw+'"><table><thead><tr><th class="ov-wkt-h">WEEKLY TOTALS</th>'+cols.map(function(c, i){ return '<th data-wk="'+ws[i]+'"'+(ws[i]>=fw && (i===0 || ws[i-1]<fw) ? ' class="ov-wkt-f"' : '')+'>'+c.lbl+'<br><span>WEEK '+c.wn+'</span></th>'; }).join('')+'</tr></thead><tbody>'
       + line('NUMBER OF TRUCKS', function(c){ return c.n; })
       + line('PLANTS EXPRESS DRIVERS', function(c){ return c.own; }, 'alt')
       + line('AVG VALUE PER TRUCK INVOICED', function(c){ return ovMoney(c.avg); })
@@ -9098,7 +9103,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         yb('MERCHANDISE VALUE', ovMoney(tot.val))+yb('TRUCK AVERAGE', ovMoney(tot.n?tot.val/tot.n:0))+yb('TOTAL MILES', tot.mi.toLocaleString('en-US'))+
         yb('RATE / MILE EXP · REV', ovMoney(tot.mi?tot.exp/tot.mi:0)+' · '+ovMoney(tot.mi?tot.rev/tot.mi:0))+
         yb(Math.round(tgt*100)+'% TARGET $', ovMoney(tot.exp*tgt))+yb('REVENUE VS TARGET', ovMoney(yVsT), yVsT<0?'neg':'pos')+'</div>';
-      box.innerHTML = '<div class="ov-head">'+yTop+ovWeekly(yr, 5)+'</div>'+'<div class="ov-scroll"><table class="ov-grid"><thead><tr><th>MONTH</th><th>FREIGHT EXPENSE</th><th>FREIGHT REVENUE</th><th>FREIGHT RECOVERED</th><th>DIFFERENCE</th><th>COMMON CARRIERS</th><th>PLANTS EXPRESS</th><th>TOTAL TRUCKS</th><th>MERCHANDISE VALUE</th><th>TRUCK AVERAGE</th><th>TOTAL MILES</th><th>AVG RATE PER MILE EXP</th><th>AVG RATE PER MILE REV</th><th>TARGET</th><th>TARGET $</th><th>REVENUE VS TARGET</th></tr></thead><tbody>'+rowsHtml+
+      box.innerHTML = '<div class="ov-head">'+yTop+ovWeekly(yr, 0)+'</div>'+'<div class="ov-scroll"><table class="ov-grid"><thead><tr><th>MONTH</th><th>FREIGHT EXPENSE</th><th>FREIGHT REVENUE</th><th>FREIGHT RECOVERED</th><th>DIFFERENCE</th><th>COMMON CARRIERS</th><th>PLANTS EXPRESS</th><th>TOTAL TRUCKS</th><th>MERCHANDISE VALUE</th><th>TRUCK AVERAGE</th><th>TOTAL MILES</th><th>AVG RATE PER MILE EXP</th><th>AVG RATE PER MILE REV</th><th>TARGET</th><th>TARGET $</th><th>REVENUE VS TARGET</th></tr></thead><tbody>'+rowsHtml+
         '</tbody></table></div>';
       return;
     }
@@ -9132,7 +9137,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         tbox('FREIGHT CHARGED', ovMoney(sum.fr))+tbox('(+/-) $', ovMoney(sum.fr-sum.cost), sum.fr-sum.cost<0?'neg':'pos')+
         tbox('RECOVERY', recM==null?'—':recM+'%', recM==null?'':(recM>=tgtPct?'pos':'neg'))+
         tbox('RPM COST / CHARGED', ovMoney(sum.mi?sum.cost/sum.mi:0)+' / '+ovMoney(sum.mi?sum.fr/sum.mi:0)) : '')+'</div>';
-    box.innerHTML = '<div class="ov-head">'+topBar+ovWeekly(mr, 6)+'</div>'+
+    box.innerHTML = '<div class="ov-head">'+topBar+ovWeekly(yr, 0, OV.year+'-'+('0'+(mi+1)).slice(-2)+'-01')+'</div>'+
       (mr.length ? '<div class="ov-scroll"><table class="ov-grid"><thead><tr><th>LOAD #</th><th>LOAD DATE</th><th>TRUCK # &amp; DRIVER</th><th>CARRIER</th><th>DROPS</th><th>HOURS</th><th>DRIVER SALARY</th><th>INCIDENTALS</th><th>MILEAGE</th><th>TRUCK EXP.</th><th>TOTAL COST OF TRUCK</th><th>ORDER VALUE</th><th>TOTAL FREIGHT CHARGED</th><th>(+/-) $</th><th>FREIGHT RECOVERY</th><th>RPM COST</th><th>RPM CHARGED</th><th>(+/-) $ DIFFERENCE</th></tr></thead><tbody>'+body+'</tbody></table></div>'
         : '<p style="color:var(--text-dim);font-size:13px;">No Pender trucks this month yet.</p>')+
       '<p style="font-size:11.5px;color:var(--text-dim);margin-top:8px;">'+(ovReadOnly()?'<b>View only.</b> Only the owner, admins, and managers can change these numbers. ':'')+'Truck exp. fills in automatically (Plants Express trucks: miles × cost per mile; common carriers: the truck\u2019s price). A load counts as Plants Express when its carrier is Plants Express; every other carrier counts as a common carrier. Type a number in the box to use your own. Driver salary = hours × driver pay per hour.</p>';
