@@ -995,7 +995,7 @@
     <div id="homePender" class="hidden">
       <div class="navtabs hidden" id="penderSubTabs" style="margin-top:14px;">
         <button type="button" data-psub="workbook" class="active">Workbook</button>
-        <button type="button" data-psub="overview">Overview</button>
+        <button type="button" data-psub="overview">Shipping Log</button>
         <button type="button" data-psub="confirm">Delivery confirmation</button>
         <span id="ovViewOnlyTag" class="ov-vo hidden">👁 View only</span>
       </div>
@@ -8005,7 +8005,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   document.querySelectorAll('#pxAdmTabs button').forEach(function(b){ b.addEventListener('click', function(){ pxAdmTab(b.getAttribute('data-admtab')); }); });
   /* --- Managers: limited admins (owner chooses their areas) --- */
-  var PX_MGR_AREAS = [['workbook','Pender workbook'],['overview','Overview'],['dispatcher','Dispatcher'],['employees','Pender employees'],['directory','Directory'],['zones','Freight zones (view only)'],['sgoals','Sales goals'],['archive','Archive']];
+  var PX_MGR_AREAS = [['workbook','Pender workbook'],['overview','Shipping Log'],['dispatcher','Dispatcher'],['employees','Pender employees'],['directory','Directory'],['zones','Freight zones (view only)'],['sgoals','Sales goals'],['archive','Archive']];
   function pxIsManagerRec(a){ return a && a.role==='manager'; }
   function pxAdmAllowed(tab){
     if(!pxAdminSession) return false;
