@@ -2102,7 +2102,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var go = function(){
         return fetchCol(c).catch(function(e){
           tries++;
-          if(tries > 5){ note('Can’t load the board’s data. Check your internet connection and reload the page.'); c.loading = null; c.listeners.forEach(function(l){ if(l.error) try{ l.error(wrapErr(e)); }catch(x){} }); throw e; }
+          if(tries > 5){ note('Still connecting to the board\u2019s data\u2026 it will load by itself in a moment.'); c.loading = null; setTimeout(function(){ if(!c.ready && c.listeners.length) load(c).then(function(){ note(''); }).catch(function(){}); }, 15000); throw e; }
           return new Promise(function(r){ setTimeout(r, 800 * tries); }).then(go);
         });
       };
