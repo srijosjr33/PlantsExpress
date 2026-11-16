@@ -662,7 +662,7 @@
   /* Overview: weekly totals box, top right */
   .ov-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;}
   .ov-head > .ov-top{flex:1 1 420px;}
-  .ov-wkt{margin-left:auto;margin-top:4px;margin-bottom:10px;border:1.5px solid #E24B4A;border-radius:10px;overflow-x:auto;overflow-y:hidden;min-width:0;flex:0 1 auto;max-width:min(100%, 860px);background:var(--panel);}
+  .ov-wkt{margin-left:auto;margin-top:4px;margin-bottom:10px;border:1.5px solid #E24B4A;border-radius:10px;overflow-x:auto;overflow-y:hidden;min-width:0;flex:0 1 auto;max-width:min(100%, 560px);background:var(--panel);}
   .ov-wkt thead th.ov-wkt-h, .ov-wkt tbody th{position:sticky;left:0;z-index:1;} .ov-wkt thead th.ov-wkt-h{background:#111;} .ov-wkt tbody th{background:var(--panel);} .ov-wkt tbody tr.alt th{background:#2f3a44;}
   .ov-wkt thead th.ov-wkt-f{box-shadow:inset 3px 0 0 #E53935;}
   .ov-wkt table{border-collapse:collapse;font:600 12.5px Arial,Helvetica,sans-serif;}
@@ -2030,7 +2030,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       return page();
     }).then(function(rows){
       var m = new Map();
-      rows.forEach(function(r){ m.set(r.id, r.data); if(r.updated_at && (!lastAt || r.updated_at > lastAt)) lastAt = r.updated_at; });
+      rows.forEach(function(r){ m.set(r.id, r.data); seenAt[c.name+'|'+r.id] = r.updated_at; if(r.updated_at && (!lastAt || r.updated_at > lastAt)) lastAt = r.updated_at; });
       Object.keys(c.pending).forEach(function(id){ if(c.pending[id] > 0){ if(c.docs.has(id)) m.set(id, c.docs.get(id)); else m.delete(id); } });
       var first = !c.ready, changed = first || sigOf(m) !== sigOf(c.docs);
       c.docs = m; c.ready = true;
@@ -2039,37 +2039,53 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
   /* quick check every few seconds: pick up anything saved since we last looked (works even where the live
      connection is blocked or asleep) — so every screen stays within seconds of everyone else, like a shared sheet */
-  var lastAt = null, polling = false;
-  function quickCheck(){
-    if(polling || !lastAt) return;
+  var lastAt = null, polling = false, seenAt = {}, qcSlow = 1;
+  /* light check: first ask only "what changed?" (ids + times, a few bytes), then download just those records */
+  function quickCheck(done){
+    if(polling || !lastAt){ if(done) done(); return; }
     var names = Object.keys(cols).filter(function(k){ return cols[k].ready && cols[k].listeners.length; });
-    if(!names.length) return;
-    polling = true;
+    if(!names.length){ if(done) done(); return; }
+    polling = true; var t0 = Date.now();
+    var finish = function(ok){ polling = false; var ms = Date.now()-t0; qcSlow = (!ok || ms > 4000) ? Math.min(qcSlow*2, 10) : 1; if(done) done(); };
     clientP.then(function(sb){
       var since = new Date(Date.parse(lastAt) - 120000).toISOString();
-      return sb.from(TABLE).select('col,id,data,updated_at').in('col', names).gte('updated_at', since).order('updated_at').limit(500);
-    }).then(function(r){
-      polling = false;
-      if(!r || r.error) return;
-      var touched = {};
-      (r.data || []).forEach(function(row){
-        if(row.updated_at > lastAt) lastAt = row.updated_at;
-        var c = cols[row.col]; if(!c || !c.ready || c.pending[row.id] > 0) return;
-        var cur = c.docs.get(row.id);
-        if(cur !== undefined && JSON.stringify(cur) === JSON.stringify(row.data)) return;
-        c.docs.set(row.id, row.data); touched[row.col] = c;
+      return sb.from(TABLE).select('col,id,updated_at').in('col', names).gte('updated_at', since).order('updated_at').limit(1000).then(function(r){
+        if(!r || r.error) throw (r && r.error) || new Error('qc');
+        var need = {};
+        (r.data || []).forEach(function(row){
+          if(row.updated_at > lastAt) lastAt = row.updated_at;
+          var k = row.col+'|'+row.id; if(seenAt[k]===row.updated_at) return;
+          var c = cols[row.col]; if(!c || !c.ready || c.pending[row.id] > 0) return;
+          (need[row.col] = need[row.col] || []).push(row.id);
+        });
+        var cs = Object.keys(need);
+        return Promise.all(cs.map(function(cn){
+          return sb.from(TABLE).select('id,data,updated_at').eq('col', cn).in('id', need[cn]).then(function(r2){
+            if(!r2 || r2.error) return;
+            var c = cols[cn], hit = false;
+            (r2.data || []).forEach(function(row){
+              seenAt[cn+'|'+row.id] = row.updated_at;
+              if(c.pending[row.id] > 0) return;
+              var cur = c.docs.get(row.id);
+              if(cur !== undefined && JSON.stringify(cur) === JSON.stringify(row.data)) return;
+              c.docs.set(row.id, row.data); hit = true;
+            });
+            if(hit) emit(c);
+          });
+        }));
       });
-      Object.keys(touched).forEach(function(k){ emit(touched[k]); });
-    }, function(){ polling = false; });
+    }).then(function(){ finish(true); }, function(){ finish(false); });
   }
-  setInterval(function(){ if(document.visibilityState === 'visible') quickCheck(); }, 3000);
-  setInterval(function(){ if(document.visibilityState !== 'visible') quickCheck(); }, 15000);
+  (function qcLoop(){
+    var base = document.visibilityState === 'visible' ? 3000 : 60000;
+    setTimeout(function(){ quickCheck(qcLoop); }, base * qcSlow);
+  })();
   function sigOf(m){ var ids = Array.from(m.keys()).sort(); return JSON.stringify(ids.map(function(id){ return [id, m.get(id)]; })); }
   /* safety net: if the live connection quietly stops (computer asleep, Wi-Fi change, phone in a pocket),
      every screen still catches up on its own — when it comes back to the front, and every 30 seconds */
   var lastCatchUp = 0;
   function catchUp(force){
-    var now = Date.now(); if(!force && now - lastCatchUp < 5000) return; lastCatchUp = now;
+    var now = Date.now(); if(!force && now - lastCatchUp < 120000) return; lastCatchUp = now;
     Object.keys(cols).forEach(function(k){
       var c = cols[k]; if(!c.listeners.length) return;
       if(c.ready) fetchCol(c).catch(function(){});
@@ -2079,7 +2095,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') catchUp(); });
   window.addEventListener('focus', function(){ catchUp(); });
   window.addEventListener('online', function(){ catchUp(true); });
-  setInterval(function(){ if(document.visibilityState === 'visible') catchUp(true); }, 30000);
+  setInterval(function(){ if(document.visibilityState === 'visible') catchUp(true); }, 600000);   // full re-download only every 10 min (the quick check covers the rest)
   function load(c){
     if(!c.loading){
       var tries = 0;
@@ -2118,6 +2134,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     emit(c);
   }
   function ensureChannel(){
+    return;   // live websocket feed turned off: on a busy day it made the database re-check every change for every open screen. The 3-second quick check keeps screens in step.
     if(channel || chanStarting) return;
     chanStarting = true;
     clientP.then(function(sb){
@@ -4173,8 +4190,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           perStop:newPerStop, fuelMpg: fuelIndex.mpg || 6
         };
 
-        var pxMail = (editLoad.status==='claimed' && changes.length) ? {updated:true, details:pxChangeDetails(editLoad, newFields), waiting:!editLoad.brokerHaul} : null;
-        if(editLoad.status==='claimed' && changes.length && !editLoad.brokerHaul){
+        var pxMail = (editLoad.status==='claimed' && changes.length) ? {updated:true, details:pxChangeDetails(editLoad, newFields), waiting:!editLoad.brokerHaul && !ovIsPlantsExpress(editLoad.claimedBy)} : null;
+        if(editLoad.status==='claimed' && changes.length && !editLoad.brokerHaul && !ovIsPlantsExpress(editLoad.claimedBy)){
           editLoad.pendingChange = {fields:newFields, oldEquip:oldEquip, changesSummary:changes, proposedAt: now(), proposedBy: session.name};
           addEvent(editLoad, 'Dispatcher '+session.name+' proposed changes ('+changes.join(', ')+') — awaiting confirmation from '+editLoad.claimedBy);
           persistData();
@@ -11310,6 +11327,22 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     addEvent(l, 'Reopened by '+session.name+' (was Completed)');
     persistData(); renderAll();
   });
+  /* Plants Express is in-house: changes to its loads apply right away (no carrier approval), so drivers see them at once.
+     Also applies any change already waiting on a Plants Express load. */
+  function pxPxPendingHeal(){
+    if(!(session && session.role==='dispatcher')) return;
+    var hit = false;
+    loads.forEach(function(l){
+      if(l.status!=='claimed' || !l.pendingChange || l.brokerHaul || !ovIsPlantsExpress(l.claimedBy)) return;
+      var pc = l.pendingChange; Object.assign(l, pc.fields || {});
+      if(pc.oldEquip!==undefined && pc.oldEquip!==l.equip){ l.equipAlert = {from:pc.oldEquip, to:l.equip, at:now(), ackBy:[]}; }
+      l.pendingChange = null; hit = true;
+      try{ addEvent(l, 'Changes applied ('+(pc.changesSummary||[]).join(', ')+') — Plants Express load, no approval needed'); }catch(e){}
+    });
+    if(hit){ persistData(); try{ renderAll(); }catch(e){} }
+  }
+  setTimeout(function(){ try{ pxPxPendingHeal(); }catch(e){} }, 4000);
+  setInterval(function(){ try{ if(document.visibilityState==='visible') pxPxPendingHeal(); }catch(e){} }, 20000);
   /* Dispatcher screens re-check every 20s that each Pender order's 'on a truck' flag matches the loads (fixes any order a stale screen flipped back to Pending) */
   setInterval(function(){ try{ if(session && session.role==='dispatcher' && document.visibilityState==='visible') pxLockRows(); }catch(e){} }, 20000);
   document.addEventListener('visibilitychange', function(){ try{ if(document.visibilityState==='visible' && pxbRole()==='dispatcher') setTimeout(pxbPush, 1500); }catch(e){} });
