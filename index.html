@@ -673,6 +673,26 @@
   .ov-wkt tbody td{text-align:right;padding:5px 12px;white-space:nowrap;border-left:1px solid rgba(255,255,255,.12);}
   .ov-wkt tbody tr.alt{background:rgba(55,138,221,.16);}
   .ov-wkt b.pos{color:#97C459;} .ov-wkt b.neg{color:#F09595;}
+
+  /* driver stop address + Done */
+  .drv-stop{grid-template-columns:26px 78px 1fr 66px !important;}
+  .drv-addr a{color:#185FA5;text-decoration:underline;} .drv-addr{color:#2C2C2A !important;}
+  .drv-done{align-self:center;background:#fff;color:#1a1a1a;border:1.5px solid #888780;border-radius:10px;padding:10px 4px;font:700 13.5px Roboto,Arial,sans-serif;cursor:pointer;}
+  .drv-done.on{background:#97C459;border-color:#3B6D11;color:#173404;}
+  .drv-stop.done .drv-sw b,.drv-stop.done .drv-st b{color:#5F5E5A;text-decoration:line-through;} .drv-stop.done .drv-sn{background:#639922;}
+  .drv-dt{color:#27500A !important;font-weight:700 !important;}
+  /* load tracking: stops */
+  .trk-sp{font-weight:700;white-space:nowrap;} .trk-sp.all{color:#97C459;}
+  .trk-next{font-size:12px;color:var(--text-dim);margin-top:2px;} .trk-next b{color:var(--text);}
+  .trk-stops{margin:4px 0 10px;border:1px solid var(--panel-2);border-radius:10px;padding:6px 10px;}
+  .trk-stop{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--panel-2);font-size:13px;} .trk-stop:last-child{border-bottom:0;}
+  .trk-stop .n{display:inline-flex;width:20px;height:20px;border-radius:50%;background:#888780;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;}
+  .trk-stop span{color:var(--text-dim);} .trk-stop .t{margin-left:auto;font-weight:700;color:var(--text);}
+  .trk-stop.done .n{background:#639922;} .trk-stop.done b{color:var(--text-dim);text-decoration:line-through;} .trk-stop.done .t{color:#97C459;}
+  .trk-stop.next{background:rgba(55,138,221,.14);border-radius:8px;padding-left:6px;} .trk-stop.next .n{background:#378ADD;} .trk-stop.next .t{color:#85B7EB;}
+
+  #pxTrack .tk-ban.next{background:#E6F1FB;color:#0C447C;font-size:17px;border:2px solid #378ADD;}
+  #pxTrack .tk-ban.queue{background:#F1EFE8;color:#2C2C2A;}
 </style>
 <style>
 .brand .mark.px-big-name{font-size:32px !important;line-height:1.05;letter-spacing:0.01em;}
@@ -4862,7 +4882,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         kind:'load', id:l.id, refLabel:''+pxLoadNo(l.ref), route: originCity(l)+' → '+destCity(l),
         who:l.shipper, status:l.status, statusText: loadStatusLabel(l), carrier:l.claimedBy||'—', rateLabel:money(l.rate),
         lastTs: lastEv?lastEv.ts:l.createdAt, lastLabel: lastEv?lastEv.label:'Published',
-        history:l.events||[]
+        history:l.events||[], load:l
       };
     });
     var rows = reqRows.concat(loadRows).sort(function(a,b){return b.lastTs-a.lastTs;});
@@ -4876,7 +4896,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       return true;
     });
     if(rows.length===0){ wrap.innerHTML='<div class="panel empty"><div class="hd">No loads match</div>Try a different filter or search.</div>'; return; }
-    var html = '<table class="track-table"><thead><tr><th>Ref</th><th>Route</th><th>Shipper</th><th>Status</th><th>Carrier</th><th>Rate</th><th>Last update</th><th></th></tr></thead><tbody>';
+    var html = '<table class="track-table"><thead><tr><th>Ref</th><th>Route</th><th>Shipper</th><th>Status</th><th>Stops</th><th>Carrier</th><th>Rate</th><th>Last update</th><th></th></tr></thead><tbody>';
     rows.forEach(function(row){
       var isOpen = !!trackExpanded[row.id];
       html += '<tr>'+
@@ -4884,13 +4904,22 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         '<td>'+row.route+'</td>'+
         '<td>'+row.who+'</td>'+
         '<td><span class="badge '+row.status+'">'+(row.statusText||statusLabel(row.status))+'</span></td>'+
+        '<td>'+(function(){ if(!row.load || (row.status!=='claimed' && row.status!=='completed')) return '<span style="color:var(--text-dim);">—</span>';
+          var p = pxStopProgress(row.load); if(!p.total) return '—';
+          var h = '<span class="trk-sp'+(p.done===p.total?' all':'')+'">'+p.done+' of '+p.total+' done</span>';
+          if(p.next && row.status==='claimed') h += '<div class="trk-next">Next: <b>'+pxEsc(p.next.s.company||('Stop '+(p.next.i+1)))+'</b>'+(p.next.s.city ? ' · '+pxEsc(p.next.s.city) : '')+(pxStopTime(p.next.s.time) ? ' · '+pxStopTime(p.next.s.time) : '')+'</div>';
+          return h; })()+'</td>'+
         '<td>'+row.carrier+'</td>'+
         '<td class="mono">'+row.rateLabel+'</td>'+
         '<td>'+fmtWhen(row.lastTs)+'</td>'+
         '<td><button class="exp-toggle" data-id="'+row.id+'">'+(isOpen?'Hide':'History')+'</button></td>'+
         '</tr>';
       if(isOpen){
-        html += '<tr class="exp-row"><td colspan="8"><div class="lc-events">';
+        html += '<tr class="exp-row"><td colspan="9">';
+        if(row.load){ var pp = pxStopProgress(row.load); if(pp.total){ html += '<div class="trk-stops">'+pp.list.map(function(x, i){ var dn = pp.map[x.key], nx = pp.next && pp.next.i===i && row.status==='claimed';
+            return '<div class="trk-stop'+(dn?' done':'')+(nx?' next':'')+'"><span class="n">'+(dn?'✓':(i+1))+'</span><b>'+pxEsc(x.s.company||'')+'</b> <span>'+pxEsc([x.s.address, x.s.city, x.s.state].filter(Boolean).join(', '))+'</span>'
+              + '<span class="t">'+(dn ? 'Done '+fmtWhen(dn.at)+(dn.by ? ' by '+pxEsc(dn.by) : '') : [nx ? 'NEXT STOP' : '', pxStopTime(x.s.time)].filter(Boolean).join(' · '))+'</span></div>'; }).join('')+'</div>'; } }
+        html += '<div class="lc-events">';
         row.history.forEach(function(ev){
           html += '<div class="evrow"><div class="t">'+fmtWhen(ev.ts)+'</div><div class="l">'+ev.label+'</div></div>';
         });
@@ -8109,11 +8138,29 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       try{ pxDrvAdminRender(); }catch(e){}
       try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
     }, function(){});
+    PX.db.collection('stopDone').onSnapshot(function(snap){
+      var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); }); PXDRV.sd = m;
+      try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
+      try{ if(document.getElementById('trackTableWrap') && document.getElementById('trackTableWrap').offsetParent) renderTracking(); }catch(e){}
+    }, function(){});
     PX.db.collection('loadStatus').onSnapshot(function(snap){
       var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); }); PXDRV.ls = m;
       try{ if(window.__pxHomeTab==='driver') pxDrvShow(); }catch(e){}
     }, function(){});
   })();
+  /* --- stop-by-stop "Done" (driver taps it; dispatch sees it on Load tracking) --- */
+  function pxStopKey(s, idx){ return s.orderId ? String(s.orderId) : ('i'+idx+'|'+String(s.company||'')+'|'+String(s.city||'')).replace(/[.#$\[\]\/]/g,' '); }
+  function pxStopList(l){   // the stops the driver works through, in order (not the first loading stop)
+    var st = l.stops||[], pick = st.find(function(x){ return x.type==='pickup'; });
+    var out = []; st.forEach(function(x, i){ if(x!==pick && !x.isReturnStop) out.push({s:x, key:pxStopKey(x, i)}); }); return out;
+  }
+  function pxStopDone(l){ return ((PXDRV.sd||{})[String(l.id)]||{}).stops || {}; }
+  function pxStopProgress(l){
+    var list = pxStopList(l), done = pxStopDone(l), n = 0, next = null;
+    list.forEach(function(x, i){ if(done[x.key]) n++; else if(!next) next = {i:i, s:x.s}; });
+    return {total:list.length, done:n, next:next, list:list, map:done};
+  }
+  function pxStopTime(t){ if(!/^\d{1,2}:\d{2}/.test(t||'')) return ''; var p = t.split(':'), h = +p[0]; return ((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
   function pxDrvState(l, me){   // the newest status: what dispatch has, or a newer update from this carrier/driver
     var d = (PXDRV.ls||{})[String(l.id)];
     if(d && (d.at||0) > (l.carrierStatusAt||0) && String(d.by||'').toLowerCase()===String(me.carrier||'').toLowerCase())
@@ -8191,11 +8238,17 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         + '<div class="drv-row"><span>LOADING</span>'+e(pxDrvWhen(pick)||'—')+(pick.city ? '<div class="drv-sub">'+e([pick.company, pick.city].filter(Boolean).join(' · '))+'</div>' : '')+'</div>'
         + '<div class="drv-row"><span>DELIVERING</span>'+e(dTxt)+'</div>'
         + ((l.equip || l.vehicleNo) ? '<div class="drv-row"><span>TRUCK</span>'+e(l.equip||'')+(l.vehicleNo ? ' #'+e(l.vehicleNo) : '')+'</div>' : '')
-        + '<div class="drv-stops">'+st.filter(function(s){ return s!==pick && !s.isReturnStop; }).map(function(s, i){
-            var w = pxDrvWhen(s), parts = w.split(' · ');
-            return '<div class="drv-stop"><div class="drv-sn">'+(i+1)+'</div><div class="drv-st"><b>'+e(parts[1] || 'No time set')+'</b><small>'+e(parts[0]||'')+'</small></div>'
-              + '<div class="drv-sw"><b>'+e(s.company||s.name||'Stop '+(i+1))+'</b>'+(s.type==='pickup' ? ' <i>PICKUP</i>' : '')+'<small>'+e([s.city, s.state].filter(Boolean).join(', '))+'</small></div></div>';
-          }).join('')+'</div>'
+        + '<div class="drv-stops">'+(function(){ var sd = pxStopDone(l); return pxStopList(l).map(function(x, i){
+            var s = x.s, w = pxDrvWhen(s), parts = w.split(' · '), dn = sd[x.key];
+            var addr = [s.address, [s.city, s.state].filter(Boolean).join(', ')+(s.zip ? ' '+s.zip : '')].filter(function(v){ return String(v||'').trim(); }).join(', ');
+            var maps = addr ? 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addr) : '';
+            return '<div class="drv-stop'+(dn?' done':'')+'"><div class="drv-sn">'+(dn?'✓':(i+1))+'</div><div class="drv-st"><b>'+e(parts[1] || 'No time set')+'</b><small>'+e(parts[0]||'')+'</small></div>'
+              + '<div class="drv-sw"><b>'+e(s.company||s.name||'Stop '+(i+1))+'</b>'+(s.type==='pickup' ? ' <i>PICKUP</i>' : '')
+              + (s.address ? '<small class="drv-addr">'+(maps ? '<a href="'+maps+'" target="_blank" rel="noopener">'+e(s.address)+'</a>' : e(s.address))+'</small>' : '')
+              + '<small>'+e([s.city, s.state].filter(Boolean).join(', ')+(s.zip ? ' '+s.zip : ''))+'</small>'
+              + (dn ? '<small class="drv-dt">Done '+e(new Date(dn.at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}))+'</small>' : '')+'</div>'
+              + '<button type="button" class="drv-done'+(dn?' on':'')+'" data-sdone="'+e(x.key)+'" data-l="'+e(l.id)+'">'+(dn ? '✓ Done' : 'Done')+'</button></div>';
+          }).join(''); })()+'</div>'
         + (function(){
             var cs = pxDrvState(l, me), stg = cs.deliveryStage==='out_for_delivery' ? 'in_route' : (cs.deliveryStage||'claimed'), tm = cs.timing||{}, lbl = cs.status==='claimed' ? loadStatusLabel(Object.assign({}, l, cs)) : statusLabel(cs.status);
             var b = function(attr, v, on, txt){ return '<button type="button" class="drv-b'+(on?' on':'')+'" data-'+attr+'="'+v+'" data-l="'+e(l.id)+'">'+txt+'</button>'; };
@@ -8227,6 +8280,17 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       pxDrvSend(l, me, {timing: Object.assign({state:st, minutes: st==='delayed' ? (cur.minutes||'') : ''}, who)}); return;
     }
     pxDrvSend(l, me, {timing: Object.assign({state:'delayed', minutes: parseInt(b.getAttribute('data-dmin'),10)}, who)});
+  });
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('#pxDrvBox [data-sdone]'); if(!b) return;
+    var me = pxDrvSaved(); if(!me || !PX.db) return;
+    var id = b.getAttribute('data-l'), key = b.getAttribute('data-sdone');
+    var cur = ((PXDRV.sd||{})[id]||{}).stops || {}, nx = Object.assign({}, cur);
+    if(nx[key]){ if(!confirm('Mark this stop as NOT done?')) return; delete nx[key]; }
+    else nx[key] = {at:Date.now(), by:me.name, carrier:me.carrier};
+    PXDRV.sd = PXDRV.sd || {}; PXDRV.sd[id] = {stops:nx, updatedAt:Date.now()};
+    var box = document.getElementById('pxDrvBox'); if(box) box.__h = null; pxDrvShow();
+    PX.db.collection('stopDone').doc(id).set({stops:nx, by:me.name, carrier:me.carrier, updatedAt:Date.now()}).catch(function(){ alert('Could not save — check your signal and tap again.'); });
   });
   function pxDrvPinned(){   // carriers with at least one driver who has a PIN
     var out = [];
@@ -11093,7 +11157,12 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var stop = load ? ((load.stops||[]).find(function(s){ return s.orderId===oid; }) || {}) : {};
       var step = 0;   // 0 received, 1 scheduled, 2 loading, 3 on the way, 4 delivered
       if(row.status==='Canceled'){ var hc = '<div class="tk-msg">This order was canceled.<br><small>Please contact your sales rep'+(c.salesRep?', '+e(c.salesRep):'')+'.</small></div>'; if(hc!==lastHtml){ pg.querySelector('.tk-card').innerHTML = hc; lastHtml = hc; } return; }
-      if(row.status==='Delivered' || row.archived || (st && st.status==='completed')) step = 4;
+      var myDone = null, ahead = null, isNext = false;
+      if(load && st && st.status==='claimed'){
+        var sp2 = pxStopProgress(load), mine = sp2.list.findIndex(function(x){ return x.key===oid; });
+        if(mine>-1){ myDone = sp2.map[oid] || null; if(!myDone){ ahead = sp2.list.slice(0, mine).filter(function(x){ return !sp2.map[x.key]; }).length; isNext = ahead===0; } }
+      }
+      if(row.status==='Delivered' || row.archived || (st && st.status==='completed') || myDone) step = 4;
       else if(st && st.status==='claimed'){ var g = st.deliveryStage||'claimed'; step = (g==='loading') ? 2 : (g==='in_route' || g==='out_for_delivery' || g==='on_site') ? 3 : 1; }
       else if(load) step = 1;
       var steps = ['Order received','Scheduled','Being loaded','On the way','Delivered'];
@@ -11102,11 +11171,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(/^\d{1,2}:\d{2}/.test(stop.time||'')){ var p = stop.time.split(':'); base = (+p[0])*60 + (+p[1]); }
       var late = tm && tm.state==='delayed' ? (parseInt(tm.minutes,10)||0) : 0;
       var banner = '';
+      var rolling = st && st.status==='claimed' && (st.deliveryStage==='in_route' || st.deliveryStage==='on_site' || st.deliveryStage==='out_for_delivery');
+      var stopNote = '';
+      if(step<4 && rolling && isNext) stopNote = '<div class="tk-ban next">🚚 <b>You\u2019re the next stop!</b> The truck is on its way to you.</div>';
+      else if(step<4 && rolling && ahead>0) stopNote = '<div class="tk-ban queue">📍 The truck has <b>'+ahead+' stop'+(ahead===1?'':'s')+'</b> before yours.</div>';
       if(tm && tm.state==='delayed') banner = '<div class="tk-ban late">⏱️ Your delivery is running '+(late ? 'about <b>'+(late>=60 ? (late/60)+(late===60?' hour':' hours') : late+' minutes')+'</b> late' : 'late')+'</div>';
       else if(tm && tm.state==='ahead') banner = '<div class="tk-ban early">🚀 Your delivery is running ahead of schedule</div>';
       else if(tm && tm.state==='on_time') banner = '<div class="tk-ban ok">✅ Your delivery is on time</div>';
       var eta = '';
-      if(step===4) eta = '<div class="tk-row"><span>DELIVERED</span><b>'+e(longDate(dDate)||'')+'</b></div>';
+      if(step===4) eta = '<div class="tk-row"><span>DELIVERED</span><b>'+e(myDone ? new Date(myDone.at).toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'})+' at '+new Date(myDone.at).toLocaleTimeString('en-US',{hour:'numeric', minute:'2-digit'}) : (longDate(dDate)||''))+'</b></div>';
       else {
         eta = '<div class="tk-row"><span>DELIVERY DATE</span><b>'+e(longDate(dDate)||'To be confirmed')+'</b></div>';
         if(base!=null) eta += '<div class="tk-row"><span>ESTIMATED ARRIVAL</span><b>'+(late ? 'About '+clock(base+late)+' <s>'+clock(base)+'</s>' : clock(base))+'</b></div>';
@@ -11117,7 +11190,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         + '<div class="tk-sub">Order #'+e(c.orderNo||'—')+(c.city ? ' · '+e([c.city, c.state].filter(Boolean).join(', ')) : '')+'</div>'
         + '<div class="tk-now">'+e(steps[step])+'</div>'
         + '<div class="tk-steps">'+steps.map(function(s, i){ return '<div class="tk-st'+(i<step?' done':i===step?' cur':'')+'"><i></i><span>'+e(s)+'</span></div>'; }).join('')+'</div>'
-        + banner + '<div class="tk-info">'+eta+'</div>'
+        + stopNote + banner + '<div class="tk-info">'+eta+'</div>'
         + '<div class="tk-foot">Updates automatically'+(step<4 ? ' — no need to refresh' : '')+'. Questions? Contact your sales rep'+(c.salesRep ? ', <b>'+e(c.salesRep)+'</b>' : '')+'.<br><small>Times are estimates and can change due to loading, weather or traffic.</small></div>';
       if(h!==lastHtml){ pg.querySelector('.tk-card').innerHTML = h; lastHtml = h; }
     }
