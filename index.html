@@ -969,7 +969,7 @@
 
         <div class="panel panel-pad" data-admpanel="statusmail">
           <div class="section-title">Email alerts</div>
-          <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Tick who gets an email whenever a Pender load’s delivery status or timing changes (On site, Loading, En route, Delayed, Completed…) — even when the board is closed. Emails go to the address on each employee’s record (Admin → Pender Nursery employees). The emails start once the email service is connected in Supabase.</div>
+          <div style="font-size:11.5px;color:var(--text-dim);margin:-6px 0 12px;">Tick who gets an email whenever a Pender load’s delivery status or timing changes (On site, Loading, On Delivery, Delayed, Completed…) — even when the board is closed. Emails go to the address on each employee’s record (Admin → Pender Nursery employees). The emails start once the email service is connected in Supabase.</div>
           <div id="pxAdmMail"></div>
         </div>
         <div class="panel panel-pad" data-admpanel="driverpins">
@@ -2572,7 +2572,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(s==='canceled') return 'Canceled';
     return 'Claimed';
   }
-  var DELIVERY_STAGE_LABELS = {claimed:'Claimed', in_process:'In process', loading:'Loading', in_route:'En route', on_site:'On site', out_for_delivery:'En route'};
+  var DELIVERY_STAGE_LABELS = {claimed:'Claimed', in_process:'In process', loading:'Loading', in_route:'On Delivery', on_site:'On site', out_for_delivery:'On Delivery'};
   var LOCKED_STAGES = {loading:true, in_route:true, on_site:true, out_for_delivery:true};
   function loadEditLocked(load){ return !load.editUnlocked && ((load.status==='claimed' && LOCKED_STAGES[load.deliveryStage]) || load.status==='completed'); }
   function claimedStageOptions(load, forCarrier){
@@ -2583,7 +2583,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       var curOpt = cur==='on_site' ? '' : '<option value="'+cur+'" selected disabled>'+(DELIVERY_STAGE_LABELS[cur]||'Claimed')+'</option>';
       return curOpt+o('on_site','On site')+o('completed','Completed');
     }
-    return o('claimed','Claimed')+o('in_process','In process')+o('loading','Loading')+o('in_route','En route')+o('on_site','On site')+o('completed','Completed')+o('cancel','Cancel');
+    return o('claimed','Claimed')+o('in_process','In process')+o('loading','Loading')+o('in_route','On Delivery')+o('on_site','On site')+o('completed','Completed')+o('cancel','Cancel');
   }
   function pxLoadNo(ref){ return /^(BH-)?\d{1,2}-\d{4}-\d{2}$/.test(String(ref)) ? String(ref) : 'LD-'+ref; }
   function loadStatusLabel(load){
@@ -4442,7 +4442,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var st = '';
     if(load.status==='claimed'){
       var cur = load.deliveryStage==='out_for_delivery' ? 'in_route' : (load.deliveryStage||'claimed');
-      [['claimed','Claimed'],['in_process','In process'],['loading','Loading'],['in_route','En route'],['on_site','On site'],['completed','Completed']].forEach(function(p){ st += o('st:'+p[0], p[1], cur===p[0]); });
+      [['claimed','Claimed'],['in_process','In process'],['loading','Loading'],['in_route','On Delivery'],['on_site','On site'],['completed','Completed']].forEach(function(p){ st += o('st:'+p[0], p[1], cur===p[0]); });
     } else if(load.status==='available'){
       st = o('st:available','Available',true) + o('st:claimed','Claimed (pick a carrier)',false);
     } else {
@@ -5719,7 +5719,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(t.status==='canceled' || t.backhaul) return;
       var day = t.loadDate || t.date || ''; var sunIso = (function(){ var d = new Date(satIso+'T12:00:00'); d.setDate(d.getDate()+1); return trkISO(d); })(); if(!day || day < monIso || day > sunIso) return;
       var st = t.statusText || ''; var ls = loadStatusMap[t.id]; if(ls && (ls.at||0) > (t.updatedAt||0)) st = ls.statusText || st;
-      var gone = t.status==='completed' || /^(en route|on site|completed|canceled)/i.test(st);
+      var gone = t.status==='completed' || /^(en route|on delivery|on site|completed|canceled)/i.test(st);
       var v = (t.orderIds||[]).reduce(function(a,id){ var r = rows.get(id); return a + (r ? trkNum((r.cells||{}).value) : 0); }, 0);
       list.push({ref:t.loadRef, day:day, del:(t.date||''), status:st, value:v, gone:gone});
       if(!gone) on += v;
@@ -9656,7 +9656,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       (gg ? '<div class="sg-pct"><b>'+pp+'%</b><div class="sg-bar"><div style="width:'+Math.min(100,pp)+'%;background:'+(pp>=100?'#97C459':'#EF9F27')+';"></div></div><span class="'+(tot>=gg?'pos':'neg')+'">'+(tot>=gg?'goal met ✓':sgM(gg-tot)+' to go')+'</span></div>' : '')+
       '</div><div class="sg-box"><div class="sg-bh">WHAT\u2019S IN \u201cON LOADS\u201d</div>'+
       (st ? (st.trucks.length ? st.trucks.map(function(t){ return '<div class="sg-tk'+(t.gone?' gone':'')+'"><b>'+e(t.ref)+'</b><span>Loads '+new Date(t.day+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'})+(t.del && t.del!==t.day ? ' → delivers '+new Date(t.del+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'}) : '')+' · '+e(t.status||'')+'</span><span>'+sgM2(t.value)+'</span></div>'; }).join('') : '<div class="sg-dim">No trucks this week yet.</div>') : '<div class="sg-dim">Open from the workbook to see trucks.</div>')+
-      '<div class="sg-dim" style="margin-top:8px;">Once a truck goes <b>En route</b>, it drops off On loads (its sales are in Invoiced).</div></div></div>';
+      '<div class="sg-dim" style="margin-top:8px;">Once a truck goes <b>On Delivery</b>, it drops off On loads (its sales are in Invoiced).</div></div></div>';
     var rows = '', q = [{g:0,a:0},{g:0,a:0},{g:0,a:0},{g:0,a:0}], mo = -1, mt = null;
     var flushMonth = function(){ if(mt){ var p = mt.g>0 ? Math.round(mt.a/mt.g*100) : 0; rows += '<tr class="tot"><td colspan="8">'+MONTHS[mo].charAt(0)+MONTHS[mo].slice(1).toLowerCase()+' total'+(mt.g?' · '+p+'%':'')+'</td><td>'+sgM2(mt.a)+'</td><td>'+sgM(mt.g)+'</td><td class="'+(mt.a-mt.g<0?'neg':'pos')+'">'+sgSigned(mt.a-mt.g)+'</td></tr>'; } };
     weeks.forEach(function(iso, i){
