@@ -3811,12 +3811,31 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var ret = draftStops.find(function(s){ return s.isReturnStop; });
     if(ret){ ret.company = addr.company; ret.address = addr.address; ret.city = addr.city; ret.state = addr.state; ret.zip = addr.zip; }
   }
+  // total weight + total freight of the orders on the truck being built (just for the dispatcher to see before publishing)
+  function pxSuMoreTotals(){
+    var box = document.getElementById('pxSuMore'); if(!box) return;
+    var num = function(v){ var n = parseFloat(String(v==null?'':v).replace(/[$,\s]/g,'')); return isNaN(n) ? 0 : n; };
+    var seen = {}, n = 0, wt = 0, fr = 0, noWt = 0, noFr = 0;
+    draftStops.forEach(function(st){ var id = st && !st.locked && !st.isReturnStop && st.orderId; if(!id || seen[id]) return; seen[id] = true;
+      var o = deliveryLogOrders.find(function(x){ return x.id===id; }) || (typeof requests!=='undefined' ? requests.find(function(x){ return x.id===id; }) : null); if(!o) return;
+      var c = o.wbCells || {}, w = num(o.weight!=null && o.weight!=='' ? o.weight : c.wt), f = num(o.freightAmount!=null && o.freightAmount!=='' ? o.freightAmount : c.freight);
+      n++; wt += w; fr += f; if(!w) noWt++; if(!f) noFr++; });
+    if(!n){ box.style.display = 'none'; return; }
+    box.style.display = '';
+    document.getElementById('pxSuWt').textContent = Math.round(wt).toLocaleString('en-US')+' lbs';
+    document.getElementById('pxSuFr').textContent = '$'+fr.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+    var miss = [];
+    if(noWt) miss.push(noWt+' order'+(noWt>1?'s have':' has')+' no weight');
+    if(noFr) miss.push(noFr+' order'+(noFr>1?'s have':' has')+' no freight');
+    document.getElementById('pxSuNote').textContent = (n>1 ? n+' orders' : '1 order')+(miss.length ? ' · '+miss.join(' · ') : '');
+  }
   function pxSuTotal(){
     var el = document.getElementById('pxSuTot'); if(!el) return;
     var t = 0; draftStops.forEach(function(s){ if(s && !s.isReturnStop && !s.locked) t += Number(s.units)||0; });
     if(window.__isPenderBuild && window.__loadDirection==='backhaul'){ try{ var bh = bhTotalUnits(); if(bh) t = bh; }catch(e){} }
     var pct = TRUCK_UNIT_CAPACITY ? t / TRUCK_UNIT_CAPACITY * 100 : 0;
     el.textContent = Math.round(t).toLocaleString('en-US');
+    try{ pxSuMoreTotals(); }catch(e){}
     var p = document.getElementById('pxSuPct'); if(p){ p.innerHTML = Math.round(t)>0 ? '<b style="color:'+(pct>100?'var(--danger)':'var(--accent)')+';">'+pct.toFixed(1)+'% of a truck</b> (truck holds '+TRUCK_UNIT_CAPACITY.toLocaleString('en-US')+')'+(pct>100?' — over capacity':'') : ''; }
   }
   function pxPcApplyNow(load, why){
@@ -3908,7 +3927,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     wrap.innerHTML = '<div class="sheet-wrap"><table class="sheet-table"><thead><tr>'+
       '<th>#</th><th>Type</th><th>Company</th><th>Address</th><th>City</th><th>ST</th><th>Zip</th><th>Units</th><th>Date</th><th>Time</th><th>Notes</th><th></th>'+
       '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
-      '<div class="px-su-tot" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;padding:9px 12px;border:1.5px solid var(--accent);border-radius:10px;background:var(--panel-2);"><span style="font-weight:700;letter-spacing:.03em;">TOTAL SHIPPING UNITS</span><span><b class="mono" id="pxSuTot" style="font-size:15px;"></b> <span id="pxSuPct" style="font-size:12px;color:var(--text-dim);margin-left:8px;"></span></span></div>';
+      '<div class="px-su-tot" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;padding:9px 12px;border:1.5px solid var(--accent);border-radius:10px;background:var(--panel-2);"><span style="font-weight:700;letter-spacing:.03em;">TOTAL SHIPPING UNITS</span><span><b class="mono" id="pxSuTot" style="font-size:15px;"></b> <span id="pxSuPct" style="font-size:12px;color:var(--text-dim);margin-left:8px;"></span></span>'+
+      '<span id="pxSuMore" style="display:none;width:100%;padding-top:7px;margin-top:2px;border-top:1px solid var(--grid);font-size:12.5px;">'+
+        '<span style="font-weight:700;letter-spacing:.03em;">TOTAL WEIGHT</span> <b class="mono" id="pxSuWt" style="font-size:14px;margin:0 22px 0 6px;"></b>'+
+        '<span style="font-weight:700;letter-spacing:.03em;">TOTAL FREIGHT</span> <b class="mono" id="pxSuFr" style="font-size:14px;margin-left:6px;"></b>'+
+        ' <span id="pxSuNote" style="white-space:nowrap;display:inline-block;font-size:11.5px;color:var(--text-dim);margin-left:8px;"></span></span></div>';
     pxSuTotal(); if(!wrap.__suBound){ wrap.__suBound = true; wrap.addEventListener('input', function(){ setTimeout(pxSuTotal, 0); }); wrap.addEventListener('change', function(){ setTimeout(pxSuTotal, 0); }); }
     function stopMovable(k){ var st = draftStops[k]; return !!st && !st.locked && !st.isReturnStop; }
     function moveStop(from, to){
