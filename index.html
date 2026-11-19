@@ -5485,12 +5485,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   renderUnitLines();
   renderBhUnitLines();
   if(session){ rememberMember(session.role, session.name, session.contactName); enterApp(); } else { showLogin(); }
-  function mountPenderWorkbook(host, opts){
-    var root = host.shadowRoot || host.attachShadow({mode:'open'});
-    root.innerHTML = '';
-    root.appendChild(document.getElementById('pxWbTemplate').content.cloneNode(true));
-
-  var COLS = [
+  var PX_WB_COLS = [
     {k:'reqDate',  label:'Requested delivery date', w:104, type:'date', req:true},
     {k:'orderDate',label:'Order date',         w:80,  type:'date'},
     {k:'orderNo',  label:'Order number',       w:150},
@@ -5516,6 +5511,45 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     {k:'notes',    label:'Drivers notes',      w:240},
     {k:'rep',      label:'Entered by',         w:130, type:'rep'}
   ];
+
+  /* ===== Archive order table + copy — ONE shared version used by BOTH the workbook Archive tab and Admin → Archive, so they always match ===== */
+  // item = {cells, fmt, rep, date, time}
+  function pxArCell(it, col){
+    if(col.type==='rep') return it.rep||'';
+    var v = (it.cells||{})[col.k]; v = (v==null) ? '' : String(v); if(v==='') return '';
+    if(col.type==='money' || ((it.fmt||{})[col.k]||{}).m){ var n = parseFloat(v.replace(/[$,\s]/g,'')); if(!isNaN(n)) return (n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+    return v;
+  }
+  function pxArDate(iso){ var m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (+m[2])+'/'+(+m[3])+'/'+m[1] : ''; }
+  function pxArTime(t){ if(!/^\d{1,2}:\d{2}/.test(t||'')) return ''; var p = t.split(':'), h = +p[0]; return ((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
+  function pxArOrdersHtml(loadId, items){
+    var e = pxEsc, n = items.length;
+    return '<div class="ar-cp"><button type="button" class="ar-cpall" data-arcp="'+e(loadId)+'">⧉ Copy all '+n+' order'+(n===1?'':'s')+'</button>'
+      + '<span>or use ⧉ on one row — then go to the workbook’s <b>Pending</b> tab, click the <b>Requested delivery date</b> box on an empty row and press <b>Ctrl+V</b>.</span></div>'
+      + '<div class="ar-tw"><table class="ar-t"><thead><tr><th></th><th>#</th>'+PX_WB_COLS.map(function(c){ return '<th>'+e(c.label)+'</th>'; }).join('')+'<th>Delivered</th></tr></thead><tbody>'
+      + items.map(function(it, i){
+          return '<tr><td><button type="button" class="ar-cp1" title="Copy this order" data-arcp="'+e(loadId)+'" data-ari="'+i+'">⧉</button></td><td>'+(i+1)+'</td>'
+            + PX_WB_COLS.map(function(c){ var v = pxArCell(it, c); return '<td>'+(c.k==='customer' ? '<b>'+e(v)+'</b>' : e(v))+'</td>'; }).join('')
+            + '<td>'+e([pxArDate(it.date), pxArTime(it.time)].filter(Boolean).join(' '))+'</td></tr>'; }).join('')
+      + '</tbody></table></div>';
+  }
+  // same column order as the Pending sheet, so Ctrl+V on Pending fills new rows
+  function pxArCopy(items, btn, host){
+    var t = items.map(function(it){ return PX_WB_COLS.map(function(c){ return pxArCell(it, c).replace(/[\t\n\r]+/g,' '); }).join('\t'); }).join('\n');
+    var ok = function(){ if(!btn) return; var o = btn.innerHTML; btn.innerHTML = '✓ Copied'; btn.classList.add('ok'); setTimeout(function(){ btn.innerHTML = o; btn.classList.remove('ok'); }, 1800); };
+    var old = function(){ try{ var ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;left:-9999px;top:0;'; (host||document.body).appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); ok(); }catch(x){} };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, old); else old();
+  }
+  var PX_AR_CP_CSS = '.ar-tw{overflow-x:auto;} .ar-t td,.ar-t th{white-space:nowrap;} .ar-cp{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 14px;background:#F6F3EA;border-top:1px solid #D3D1C7;font-size:12.5px;color:#444441;}'
+    + '.ar-cpall,.ar-cp1{background:#fff;color:#185FA5;border:1.5px solid #185FA5;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;padding:4px 12px;} .ar-cp1{padding:1px 8px;font-size:13px;} .ar-cpall.ok,.ar-cp1.ok{background:#3B6D11;border-color:#3B6D11;color:#fff;}';
+  (function(){ try{ var st = document.createElement('style'); st.textContent = PX_AR_CP_CSS; document.head.appendChild(st); }catch(x){} })();
+
+  function mountPenderWorkbook(host, opts){
+    var root = host.shadowRoot || host.attachShadow({mode:'open'});
+    root.innerHTML = '';
+    root.appendChild(document.getElementById('pxWbTemplate').content.cloneNode(true));
+
+  var COLS = PX_WB_COLS.map(function(c){ return Object.assign({}, c); });
   var FZ_LIST = ['Flat','Below Min','19%','21%','23%','25%'];
   function fzPct(z){ var m = /^\s*(\d+(?:\.\d+)?)\s*%\s*$/.exec(String(z||'')); return m ? +m[1] : null; }
   function fzCanon(v){ var t = String(v||'').trim(), l = t.toLowerCase().replace(/\s+/g,' '); if(!t) return '';
@@ -6639,6 +6673,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     root.querySelector('.fbar').style.display = isSum ? 'none' : '';
     root.querySelector('.toolbar').style.display = isSum ? 'none' : '';
     $('summary').style.display = isSum ? 'block' : 'none';
+    // Delivery Trucks turns off this panel's own scrolling (its sheet scrolls instead) — turn it back on for the other tabs
+    $('summary').style.flexDirection = ''; $('summary').style.overflow = ''; $('summary').style.paddingBottom = '';
     render();
     if(!isSum){ select(sel.r, sel.c); wrapEl.focus({preventScroll:true}); }
   });
@@ -7077,6 +7113,10 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function archMonthKey(l){ var d = l.loadDate || (l.stops[0]||{}).date || (l.completedAt ? new Date(l.completedAt).toISOString().slice(0,10) : ''); return String(d).slice(0,7); }
   function archMonthName(k){ var p = k.split('-'); if(p.length<2) return 'No date'; return ['January','February','March','April','May','June','July','August','September','October','November','December'][(+p[1])-1]+' '+p[0]; }
   function archCells(l, s){ var r = rows.get(s.rowId); return (r && r.cells) || (l.cells||{})[s.rowId] || {}; }
+  // archived orders as shared archive items (falls back to the stop's address if the order row is gone)
+  function archItems(l){ return l.stops.map(function(s){ var r = rows.get(s.rowId), c = Object.assign({}, (r && r.cells) || (l.cells||{})[s.rowId] || {});
+    if(!c.address && s.address) c.address = s.address; if(!c.city && s.city) c.city = s.city; if(!c.state && s.state) c.state = s.state;
+    return {cells:c, fmt:(r&&r.fmt)||{}, rep:(r && repName(r)) || '', date:s.date||'', time:s.time||''}; }); }
   function archTime(t){ if(!/^\d{1,2}:\d{2}/.test(t||'')) return ''; var p = t.split(':'), h = +p[0]; return ((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
   function renderArchive(){
     var box = $('summary'); if(!box) return;
@@ -7118,15 +7158,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         + '<span><small>SU</small>'+su.toLocaleString('en-US')+'</span>'
         + '<span><small>VALUE</small>$'+val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</span>'
         + '<span class="ar-tog">'+(open?'▲ Hide':'▼ Orders')+'</span></button>';
-      if(open){
-        h += '<table class="ar-t"><thead><tr><th>#</th><th>Order #</th><th>Customer</th><th>Address</th><th>City</th><th>ST</th><th>SU</th><th>Value</th><th>Sales rep</th><th>Delivered</th></tr></thead><tbody>'
-          + l.stops.map(function(s, i){ var c = archCells(l, s);
-              return '<tr><td>'+(i+1)+'</td><td>'+esc(c.orderNo||'')+'</td><td><b>'+esc(c.customer||'')+'</b></td><td>'+esc(c.address||s.address||'')+'</td><td>'+esc(c.city||s.city||'')+'</td><td>'+esc(c.state||s.state||'')+'</td><td>'+esc(c.su||'')+'</td><td>'+esc(c.value ? '$'+(parseNum(c.value)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '')+'</td><td>'+esc(c.salesRep||'')+'</td><td>'+esc([trkDate(s.date), archTime(s.time)].filter(Boolean).join(' '))+'</td></tr>'; }).join('')
-          + '</tbody></table>';
-      }
+      if(open){ h += pxArOrdersHtml(l.id, archItems(l)); }
       h += '</div>';
     });
     var sc = box.scrollTop;
+    box.style.display = 'block'; box.style.flexDirection = ''; box.style.overflow = ''; box.style.paddingBottom = '';
     box.innerHTML = h; box.scrollTop = sc;
     if(focusQ){ var qi = box.querySelector('.ar-q'); qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
   }
@@ -7141,8 +7177,10 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       + '.ar-head{display:grid;grid-template-columns:minmax(130px,1.1fr) repeat(8,minmax(80px,1fr)) 80px;gap:8px;align-items:center;width:100%;background:none;border:0;padding:10px 14px;text-align:left;font:inherit;color:inherit;cursor:pointer;font-weight:600;font-size:13.5px;}'
       + '.ar-head small{display:block;font-size:10px;color:#6B6558;font-weight:700;letter-spacing:.05em;} .ar-ref{font-size:15px;font-weight:700;} .ar-ref i{font-style:normal;font-size:10px;background:#E24B4A;color:#fff;border-radius:999px;padding:1px 7px;vertical-align:middle;} .ar-tog{color:#185FA5;font-size:12.5px;text-align:right;}'
       + '.ar-t{width:100%;border-collapse:collapse;background:#F6F3EA;font-size:13px;} .ar-t th{background:#D3D1C7;text-align:left;padding:6px 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;} .ar-t td{padding:6px 8px;border-top:1px solid #D3D1C7;}';
+    st.textContent += PX_AR_CP_CSS;
     root.appendChild(st);
     var box = $('summary');
+    box.addEventListener('click', function(e){ if(view.tab!=='archive') return; var cb = e.target.closest('[data-arcp]'); if(!cb) return; var l = archLoads().find(function(x){ return String(x.id)===cb.getAttribute('data-arcp'); }); if(!l) return; var it = archItems(l), ix = cb.getAttribute('data-ari'); pxArCopy(ix==null ? it : [it[+ix]], cb, root); });
     box.addEventListener('click', function(e){ var b = e.target.closest('[data-ar]'); if(!b || view.tab!=='archive') return; var id = b.getAttribute('data-ar'); arch.open[id] = !arch.open[id]; renderArchive(); });
     box.addEventListener('input', function(e){ if(view.tab!=='archive') return; if(e.target.classList.contains('ar-q')){ arch.q = e.target.value; renderArchive(); } });
     box.addEventListener('change', function(e){ if(view.tab!=='archive') return; if(e.target.classList.contains('ar-m')){ arch.month = e.target.value; renderArchive(); } else if(e.target.classList.contains('ar-mc')){ arch.mine = e.target.checked; renderArchive(); } });
@@ -9001,7 +9039,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         var o = (a.orders||[]).find(function(x){ return x.id===s.orderId; }) || {};
         var wb = String(s.orderId||'').indexOf('wb_')===0 ? reqRows[String(s.orderId).slice(3)] : null;
         var c = (wb && wb.cells) || o.wbCells || {customer: s.company||o.shipperName||'', orderNo: o.orderNo||'', su: s.units||'', city: s.city, state: s.state, address: s.address};
-        return {cells:c, date:s.date||'', time:s.time||'', city:s.city||'', state:s.state||'', address:s.address||''};
+        return {cells:c, fmt:(wb && wb.fmt)||{}, rep:(wb && wb.repName)||'', date:s.date||'', time:s.time||'', city:s.city||'', state:s.state||'', address:s.address||''};
       });
       return {id:String(l.id), load:l, loadNo:pxLoadNo(l.ref), backhaul:isBh, loadDate: fp.date || (l.createdAt ? new Date(l.createdAt).toISOString().slice(0,10) : ''),
         completedAt:l.completedAt||0, carrier:l.claimedBy||'', driverName:l.driverName||'', equip:l.equip||'', vehicleNo:l.vehicleNo||'', stops:stops};
@@ -9012,6 +9050,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   function pxArchNum(v){ var n = parseFloat(String(v||'').replace(/[$,\s]/g,'')); return isNaN(n) ? 0 : n; }
   function pxArchMonth(it){ var d = it.loadDate || (it.stops[0]||{}).date || (it.completedAt ? new Date(it.completedAt).toISOString().slice(0,10) : ''); return String(d).slice(0,7); }
   function pxArchMonthName(k){ var p = String(k).split('-'); if(p.length<2) return 'No date'; return ['January','February','March','April','May','June','July','August','September','October','November','December'][(+p[1])-1]+' '+p[0]; }
+  function pxArchShared(it){ return it.stops.map(function(s){ var c = Object.assign({}, s.cells||{}); if(!c.address && s.address) c.address = s.address; if(!c.city && s.city) c.city = s.city; if(!c.state && s.state) c.state = s.state; return {cells:c, fmt:s.fmt||{}, rep:s.rep||'', date:s.date, time:s.time}; }); }
   function pxRenderArchive(){
     var box = document.getElementById('pxArchList'); if(!box) return;
     var q = (document.getElementById('pxArchSearch').value||'').trim().toLowerCase();
@@ -9048,10 +9087,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         + '<span><small>VALUE</small>'+money(val)+'</span>'
         + '<span class="ar-tog">'+(open?'▲ Hide':'▼ Orders')+'</span></button>';
       if(open){
-        h += '<table class="ar-t"><thead><tr><th>#</th><th>Order #</th><th>Customer</th><th>Address</th><th>City</th><th>ST</th><th>SU</th><th>Value</th><th>Sales rep</th><th>Delivered</th></tr></thead><tbody>'
-          + it.stops.map(function(s, i){ var c = s.cells;
-              return '<tr><td>'+(i+1)+'</td><td>'+pxEsc(c.orderNo||'')+'</td><td><b>'+pxEsc(c.customer||'')+'</b></td><td>'+pxEsc(c.address||s.address||'')+'</td><td>'+pxEsc(c.city||s.city||'')+'</td><td>'+pxEsc(c.state||s.state||'')+'</td><td>'+pxEsc(c.su||'')+'</td><td>'+(c.value ? money(pxArchNum(c.value)) : '')+'</td><td>'+pxEsc(c.salesRep||'')+'</td><td>'+pxEsc([pxArchDate(s.date), pxArchTime(s.time)].filter(Boolean).join(' '))+'</td></tr>'; }).join('')
-          + '</tbody></table>'
+        h += pxArOrdersHtml(it.id, pxArchShared(it))
           + '<div class="ar-acts"><button class="btn ghost small arch-bol" data-id="'+pxEsc(it.id)+'" type="button">BOL / rate sheet</button> <button class="btn ghost small arch-hist" data-id="'+pxEsc(it.id)+'" type="button">'+(pxArchUI.hist[it.id]?'Hide history':'History')+'</button></div>'
           + (pxArchUI.hist[it.id] ? '<div class="ar-hist">'+(((it.load.events||[]).map(function(ev){ return '<div>'+new Date(ev.ts).toLocaleString()+' — '+pxEsc(ev.label)+'</div>'; }).join('')) || 'No history recorded.')+'</div>' : '');
       }
@@ -9062,6 +9098,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   document.getElementById('pxArchSearch').addEventListener('input', pxRenderArchive);
   document.getElementById('pxArchMonth').addEventListener('change', function(e){ pxArchUI.month = e.target.value; pxRenderArchive(); });
   document.getElementById('pxArchList').addEventListener('click', function(e){
+    var cpb = e.target.closest('[data-arcp]');
+    if(cpb){ var ai = pxArchItems().find(function(x){ return x.id===cpb.getAttribute('data-arcp'); }); if(ai){ var its = pxArchShared(ai), ix = cpb.getAttribute('data-ari'); pxArCopy(ix==null ? its : [its[+ix]], cpb); } return; }
     var hd = e.target.closest('[data-ar]');
     if(hd){ var k = hd.getAttribute('data-ar'); pxArchUI.open[k] = !pxArchUI.open[k]; pxRenderArchive(); return; }
     var b = e.target.closest('button'); if(!b) return;
