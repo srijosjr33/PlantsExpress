@@ -11558,6 +11558,69 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     pxStartLocal();
   }
 
+  /* ===== Auto refresh: every open board updates itself after a new upload, and does a full refresh every 30 min — only when nobody is working on it ===== */
+  var PX_BUILD = '20261119-193039';   // changes with every new index.html
+  (function pxAutoRefresh(){
+    if(!/^https?:$/.test(location.protocol)) return;
+    var BOOT = Date.now(), lastAct = Date.now(), newVer = false, lastTag = null, lastCheck = 0, busyNote = null;
+    var IDLE_MS = 2*60*1000, FULL_MS = 30*60*1000, CHECK_MS = 3*60*1000;
+    ['keydown','mousedown','pointerdown','wheel','touchstart','input'].forEach(function(ev){ window.addEventListener(ev, function(){ lastAct = Date.now(); }, true); });
+    function deepActive(){ var a = document.activeElement; while(a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; return a; }
+    function shown(el){ if(!el || !el.getClientRects().length) return false; var cs = getComputedStyle(el); return cs.display!=='none' && cs.visibility!=='hidden'; }
+    function modalOpen(){
+      var roots = [document]; try{ document.querySelectorAll('*').forEach(function(e){ if(e.shadowRoot) roots.push(e.shadowRoot); }); }catch(x){}
+      return roots.some(function(r){ return Array.prototype.some.call(r.querySelectorAll('.modal-bg,.modal,[role="dialog"]'), shown); });
+    }
+    function building(){   // a load is being built or edited on the dispatcher side and isn't published yet
+      if(window.__editingLoadId) return true;
+      try{ return (draftStops||[]).some(function(s){ return s && !s.locked && (s.company || s.orderId || s.address || s.city); }); }catch(x){ return false; }
+    }
+    function busy(){
+      if(Date.now() - lastAct < IDLE_MS) return true;
+      var a = deepActive(); if(a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return true;
+      return modalOpen() || building();
+    }
+    function note(txt, click){
+      if(!busyNote){ busyNote = document.createElement('div'); busyNote.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:2147483000;background:#1F3A0E;color:#fff;border:1.5px solid #97C459;border-radius:999px;padding:8px 18px;font:600 13px system-ui,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.35);cursor:default;'; document.body.appendChild(busyNote); }
+      busyNote.textContent = txt; busyNote.style.cursor = click ? 'pointer' : 'default'; busyNote.onclick = click || null;
+    }
+    function go(){
+      note('Updating the board…');
+      // pull the newest page into the browser first, so the refresh doesn't come back with an old copy
+      fetch(location.pathname, {cache:'reload'}).then(function(){ location.reload(); }, function(){ location.reload(); });
+    }
+    function checkVersion(){
+      lastCheck = Date.now();
+      return fetch(location.pathname, {method:'HEAD', cache:'no-store'}).then(function(r){
+        if(!r.ok) return false;
+        var tag = r.headers.get('etag') || r.headers.get('last-modified') || '';
+        if(tag && tag===lastTag) return true;   // nothing new uploaded since last look
+        return fetch(location.pathname, {cache:'no-store'}).then(function(r2){ return r2.ok ? r2.text() : ''; }).then(function(html){
+          var m = /var PX_BUILD = '([^']+)'/.exec(html||''); if(!m) return true;
+          lastTag = tag;
+          if(m[1]!==PX_BUILD) newVer = true;
+          return true;
+        });
+      }).catch(function(){ return false; });
+    }
+    function tick(){
+      if(!navigator.onLine) return;
+      var due = newVer || Date.now() - BOOT > FULL_MS;
+      var p = (!newVer && Date.now() - lastCheck >= CHECK_MS) ? checkVersion() : Promise.resolve(true);
+      p.then(function(reachable){
+        due = newVer || Date.now() - BOOT > FULL_MS;
+        if(!due || reachable===false) return;
+        if(busy()){
+          if(newVer) note('A new version of the board is ready — it will update when you’re done. Click here to update now.', function(){ if(!building() || confirm('You have a load that isn’t published yet. Update anyway and lose it?')) go(); });
+          return;
+        }
+        go();
+      });
+    }
+    setTimeout(checkVersion, 20000);
+    setInterval(tick, 60000);
+  })();
+
 })();
 </script>
 <script>
