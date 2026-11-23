@@ -9377,14 +9377,26 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   /* --- Carrier status / timing updates are shared, so dispatch and the reps' Delivery Trucks see them right away --- */
   var pxLsSent = {};
   function pxLsLocalGet(){ try{ return JSON.parse(localStorage.getItem('px-loadstatus')||'{}'); }catch(e){ return {}; } }
+  function pxLsData(l){
+    return {status:l.status, deliveryStage:l.deliveryStage||'', timing:l.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', equip:l.equip||'', statusText: l.status==='claimed' ? loadStatusLabel(l) : statusLabel(l.status),
+      locked: !!(l.status==='completed' || (l.status==='claimed' && LOCKED_STAGES[l.deliveryStage])), by:session.name};
+  }
+  // Remember how each load looked when it last came in from the board. Only a change made on THIS carrier screen
+  // after that gets sent — so opening or refreshing a carrier screen never re-sends old statuses on top of newer ones
+  // (that is what was undoing drivers' "Completed" and other screens' updates).
+  function pxLsBaseline(){
+    if(!session || session.role!=='carrier') return;
+    var mine = pxMyNames('carrier');
+    loads.forEach(function(l){ if(mine.indexOf(l.claimedBy)>-1) pxLsSent[l.id] = JSON.stringify(pxLsData(l)); });
+  }
   function pxShareLoadStatus(){
     if(!session || session.role!=='carrier') return;
     var mine = pxMyNames('carrier');
     loads.forEach(function(l){
       if(mine.indexOf(l.claimedBy)<0) return;
-      var data = {status:l.status, deliveryStage:l.deliveryStage||'', timing:l.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', equip:l.equip||'', statusText: l.status==='claimed' ? loadStatusLabel(l) : statusLabel(l.status),
-        locked: !!(l.status==='completed' || (l.status==='claimed' && LOCKED_STAGES[l.deliveryStage])), by:session.name};
-      var key = JSON.stringify(data); if(pxLsSent[l.id]===key) return; pxLsSent[l.id] = key;
+      var data = pxLsData(l), key = JSON.stringify(data);
+      if(pxLsSent[l.id]==null){ pxLsSent[l.id] = key; return; }   // first look at this load — nothing was changed here yet
+      if(pxLsSent[l.id]===key) return; pxLsSent[l.id] = key;
       data.at = Date.now();
       if(PX.db) PX.db.collection('loadStatus').doc(String(l.id)).set(data).catch(function(){ delete pxLsSent[l.id]; });
       else { var all = pxLsLocalGet(); all[l.id] = data; try{ localStorage.setItem('px-loadstatus', JSON.stringify(all)); }catch(e){} }
@@ -10005,6 +10017,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         next.push(obj);
       });
       loads = next;
+      try{ pxLsBaseline(); }catch(e){}
       pxbOrigPersist(); try{ renderAll(); }catch(e){}
     }
   }
@@ -11559,7 +11572,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
 
   /* ===== Auto refresh: every open board updates itself after a new upload, and does a full refresh every 30 min — only when nobody is working on it ===== */
-  var PX_BUILD = '20261119-193039';   // changes with every new index.html
+  var PX_BUILD = '20261123-112441';   // changes with every new index.html
   (function pxAutoRefresh(){
     if(!/^https?:$/.test(location.protocol)) return;
     var BOOT = Date.now(), lastAct = Date.now(), newVer = false, lastTag = null, lastCheck = 0, busyNote = null;
