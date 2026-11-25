@@ -10014,6 +10014,8 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       if(pxbApplyClaims()) changed = true;
       if(changed){ pxbOrigPersist(); try{ renderAll(); }catch(e){} }
       pxbPush();
+      // a driver/carrier update can arrive before this screen has the board (e.g. right after it opens) — apply any that were skipped
+      if(PX.loadStatus){ try{ pxApplyLoadStatus(PX.loadStatus); }catch(e){} }
     } else if(role==='carrier'){
       var me = pxbMe();
       var next = [];
@@ -11595,7 +11597,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
 
   /* ===== Auto refresh: every open board updates itself after a new upload, and does a full refresh every 30 min — only when nobody is working on it ===== */
-  var PX_BUILD = '20261125-100815';   // changes with every new index.html
+  var PX_BUILD = '20261125-102510';   // changes with every new index.html
   (function pxAutoRefresh(){
     if(!/^https?:$/.test(location.protocol)) return;
     var BOOT = Date.now(), lastAct = Date.now(), newVer = false, lastTag = null, lastCheck = 0, busyNote = null;
