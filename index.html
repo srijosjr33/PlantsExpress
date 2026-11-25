@@ -2618,7 +2618,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
       load.timing = {state:'delayed', minutes: Math.max(0, parseInt(t.value,10)||0), by:session.name, at:Date.now()};
       addEvent(load, session.name+' set timing: '+timingLabel(load));
     }
-    persistData(); renderAll();
+    pxDispSyncLs(load); persistData(); renderAll();
     if(t.classList.contains('timing-select') && t.value==='delayed'){
       setTimeout(function(){ var m = document.querySelector('.timing-min[data-id="'+load.id+'"]'); if(m) m.focus(); }, 30);
     }
@@ -4670,11 +4670,11 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         if(sel.value==='completed'){
           load.status = 'completed'; load.editUnlocked = false;
           addEvent(load, 'Marked completed by '+session.name);
-          persistData(); renderAll(); return;
+          pxDispSyncLs(load); persistData(); renderAll(); return;
         }
         load.deliveryStage = sel.value; load.editUnlocked = false;
         addEvent(load, session.name+' updated status to "'+DELIVERY_STAGE_LABELS[sel.value]+'"');
-        persistData();
+        pxDispSyncLs(load); persistData();
         renderAll();
       });
     });
@@ -4751,7 +4751,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
         if(!load) return;
         load.status = 'completed';
         addEvent(load, 'Marked completed by '+session.name);
-        persistData();
+        pxDispSyncLs(load); persistData();
         renderAll();
       });
     });
@@ -9381,6 +9381,22 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     return {status:l.status, deliveryStage:l.deliveryStage||'', timing:l.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', equip:l.equip||'', statusText: l.status==='claimed' ? loadStatusLabel(l) : statusLabel(l.status),
       locked: !!(l.status==='completed' || (l.status==='claimed' && LOCKED_STAGES[l.deliveryStage])), by:session.name};
   }
+  // When DISPATCH changes a claimed load's status, stage or timing (or reopens it), share that too — written as the
+  // newest update for that load, so the driver page, carrier screens and the workbook's Delivery Trucks all switch to it
+  // (before, a driver's mistaken "Completed" stayed on the driver page even after dispatch changed it back).
+  function pxDispSyncLs(l){
+    try{
+      if(!l || !session || session.role!=='dispatcher' || !l.claimedBy) return;
+      if(l.status!=='claimed' && l.status!=='completed') return;
+      var at = Date.now(), data = {status:l.status, deliveryStage:l.deliveryStage||'', timing:l.timing||null, vehicleNo:l.vehicleNo||'', driverName:l.driverName||'', driverPhone:l.driverPhone||'', equip:l.equip||'',
+        statusText: l.status==='claimed' ? loadStatusLabel(l) : statusLabel(l.status),
+        locked: !!(l.status==='completed' || (l.status==='claimed' && LOCKED_STAGES[l.deliveryStage])), by:l.claimedBy, fromDispatch:session.name, at:at};
+      l.carrierStatusAt = at;
+      if(PX.loadStatus) PX.loadStatus[String(l.id)] = data;
+      if(PX.db) PX.db.collection('loadStatus').doc(String(l.id)).set(data).catch(function(){});
+      else { var all = pxLsLocalGet(); all[l.id] = data; try{ localStorage.setItem('px-loadstatus', JSON.stringify(all)); }catch(e){} }
+    }catch(e){}
+  }
   // Remember how each load looked when it last came in from the board. Only a change made on THIS carrier screen
   // after that gets sent — so opening or refreshing a carrier screen never re-sends old statuses on top of newer ones
   // (that is what was undoing drivers' "Completed" and other screens' updates).
@@ -11429,6 +11445,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
           if(key==='loads'){ try{ if(PXB.dead && PXB.dead[i.id]){ delete PXB.dead[i.id]; if(PX.db) PX.db.collection('boardDeleted').doc(i.id).delete().catch(function(){}); } }catch(x){} }
         }
         if(key==='loads'){ try{ addEvent(obj, (dir==='undo'?'Undo':'Redo')+' by '+session.name+': '+e.label); }catch(x){} }
+        if(key==='loads'){ try{ pxDispSyncLs(obj); }catch(x){} }
       });
       persistData(); renderAll();
     } finally { PXU.undoing = false; PXU.act = false; PXU.snap = null; }
@@ -11472,7 +11489,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     if(!confirm('Reopen '+pxLoadNo(l.ref)+'? It goes back to "'+(DELIVERY_STAGE_LABELS[l.deliveryStage||'claimed']||'Claimed')+'" so you can set the right status.')) return;
     l.status = 'claimed'; delete l.completedAt;
     addEvent(l, 'Reopened by '+session.name+' (was Completed)');
-    persistData(); renderAll();
+    pxDispSyncLs(l); persistData(); renderAll();
   });
   /* Plants Express is in-house: changes to its loads apply right away (no carrier approval), so drivers see them at once.
      Also applies any change already waiting on a Plants Express load. */
@@ -11572,7 +11589,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
 
   /* ===== Auto refresh: every open board updates itself after a new upload, and does a full refresh every 30 min — only when nobody is working on it ===== */
-  var PX_BUILD = '20261123-112441';   // changes with every new index.html
+  var PX_BUILD = '20261125-091431';   // changes with every new index.html
   (function pxAutoRefresh(){
     if(!/^https?:$/.test(location.protocol)) return;
     var BOOT = Date.now(), lastAct = Date.now(), newVer = false, lastTag = null, lastCheck = 0, busyNote = null;
