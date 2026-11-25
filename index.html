@@ -8222,9 +8222,15 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     return {total:list.length, done:n, next:next, list:list, map:done};
   }
   function pxStopTime(t){ if(!/^\d{1,2}:\d{2}/.test(t||'')) return ''; var p = t.split(':'), h = +p[0]; return ((h%12)||12)+':'+p[1].slice(0,2)+' '+(h<12?'AM':'PM'); }
+  // when dispatch last changed this load's status/timing by hand (a carrier/driver update older than that is out of date)
+  function pxLastDispAt(l){
+    var t = l && l.carrierStatusAt || 0, re = / updated status to "|^Marked completed by|^Reopened by|^Undo by|^Redo by/;
+    ((l && l.events)||[]).forEach(function(e){ if(e && e.ts > t && re.test(String(e.label||''))) t = e.ts; });
+    return t;
+  }
   function pxDrvState(l, me){   // the newest status: what dispatch has, or a newer update from this carrier/driver
     var d = (PXDRV.ls||{})[String(l.id)];
-    if(d && (d.at||0) > (l.carrierStatusAt||0) && String(d.by||'').toLowerCase()===String(me.carrier||'').toLowerCase())
+    if(d && (d.at||0) > pxLastDispAt(l) && String(d.by||'').toLowerCase()===String(me.carrier||'').toLowerCase())
       return {status:d.status||l.status, deliveryStage:d.deliveryStage||l.deliveryStage, timing:d.timing||null};
     return {status:l.status, deliveryStage:l.deliveryStage, timing:l.timing||null};
   }
@@ -9423,7 +9429,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
     var changed = false;
     Object.keys(docs).forEach(function(id){
       var d = docs[id], l = loads.find(function(x){ return String(x.id)===String(id); });
-      if(!l || !d || (l.carrierStatusAt||0) >= (d.at||0)) return;
+      if(!l || !d || pxLastDispAt(l) >= (d.at||0)) return;   // dispatch changed it by hand after this update — dispatch wins
       if(l.status==='canceled') return;
       if(l.status==='completed' && d.status!=='completed') return;
       if(l.claimedBy && d.by && l.claimedBy!==d.by) return;
@@ -11589,7 +11595,7 @@ table.grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13p
   }
 
   /* ===== Auto refresh: every open board updates itself after a new upload, and does a full refresh every 30 min — only when nobody is working on it ===== */
-  var PX_BUILD = '20261125-091431';   // changes with every new index.html
+  var PX_BUILD = '20261125-100815';   // changes with every new index.html
   (function pxAutoRefresh(){
     if(!/^https?:$/.test(location.protocol)) return;
     var BOOT = Date.now(), lastAct = Date.now(), newVer = false, lastTag = null, lastCheck = 0, busyNote = null;
